@@ -50,17 +50,24 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "self-test failed (exit $($p.ExitCode))" }
 
       - name: Publish release
-        shell: pwsh
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $version = python -c "import re;print(re.search(r'VERSION = \"([^\"]+)\"', open('windows/xdrip_tray.py', encoding='utf-8').read()).group(1))"
-          $tag = "windows-v$version"
-          (Get-FileHash dist\xDripTray.exe -Algorithm SHA256).Hash.ToLower() + "  xDripTray.exe" | Out-File -Encoding ascii dist\xDripTray.exe.sha256
-          $notes = "Windows tray app + floating widget for xDrip+ Cloud Sync, version $version.`n`nDownload **xDripTray.exe** and see [the Windows instructions](https://github.com/${{ github.repository }}/blob/windows/windows/README.md).`n`nNot a medical device: rely on xDrip+ for alarms."
-          gh release view $tag 2>$null | Out-Null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag dist\xDripTray.exe dist\xDripTray.exe.sha256 --clobber
-          } else {
-            gh release create $tag dist\xDripTray.exe dist\xDripTray.exe.sha256 --target ${{ github.sha }} --title "xDrip+ Tray for Windows $version" --notes $notes
-          }
+          set -euo pipefail
+          version=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' windows/xdrip_tray.py)
+          tag="windows-v${version}"
+          (cd dist && sha256sum xDripTray.exe > xDripTray.exe.sha256)
+          cat > notes.md <<NOTES
+          Windows tray app + floating widget for xDrip+ Cloud Sync, version ${version}.
+
+          Download **xDripTray.exe** and follow [the Windows instructions](https://github.com/${{ github.repository }}/blob/windows/windows/README.md).
+
+          Not a medical device: rely on xDrip+ for alarms.
+          NOTES
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/xDripTray.exe dist/xDripTray.exe.sha256 --clobber
+          else
+            gh release create "$tag" dist/xDripTray.exe dist/xDripTray.exe.sha256 \
+              --target "${{ github.sha }}" --title "xDrip+ Tray for Windows ${version}" --notes-file notes.md
+          fi
