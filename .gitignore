@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.zip
+schemas/gschemas.compiled
+# never commit collected data or keys
+latest.json
+history.json
+collector.log
+.collector_token
+.collector.lock
+*.key
+key.txt

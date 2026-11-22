@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.xdrip-topbar" path="/org/gnome/shell/extensions/xdrip-topbar/">
+
+    <!-- collector -->
+    <key name="data-dir" type="s">
+      <default>''</default>
+      <summary>Folder for latest.json and history.json (empty = ~/.local/share/xdrip-topbar)</summary>
+    </key>
+    <key name="active" type="b">
+      <default>false</default>
+      <summary>Join the group visibly (roll call + battery requests)</summary>
+    </key>
+    <key name="rollcall-name" type="s">
+      <default>'gnome_info_collector'</default>
+      <summary>Name shown in xDrip+ followers list when active</summary>
+    </key>
+    <key name="key-stamp" type="i">
+      <default>0</default>
+      <summary>Bumped by the settings window whenever the sync key in the keyring changes</summary>
+    </key>
+    <key name="python" type="s">
+      <default>'python3'</default>
+      <summary>Python interpreter used to run the collector</summary>
+    </key>
+
+    <!-- position in the top bar -->
+    <key name="panel-position" type="s">
+      <choices>
+        <choice value='left'/><choice value='clock-left'/><choice value='clock-right'/><choice value='right'/>
+      </choices>
+      <default>'clock-left'</default>
+      <summary>Where the reading sits in the top bar</summary>
+    </key>
+
+    <!-- range -->
+    <key name="low-mmol" type="d">
+      <default>5.0</default>
+      <summary>Below this is low (mmol/L)</summary>
+    </key>
+    <key name="high-mmol" type="d">
+      <default>10.0</default>
+      <summary>Above this is high (mmol/L)</summary>
+    </key>
+
+    <!-- colours -->
+    <key name="value-color-low" type="s"><default>'#ff5c5c'</default><summary>Glucose value colour when low</summary></key>
+    <key name="value-color-in" type="s"><default>'#7ddc7d'</default><summary>Glucose value colour when in range</summary></key>
+    <key name="value-color-high" type="s"><default>'#ffb84d'</default><summary>Glucose value colour when high</summary></key>
+    <key name="arrow-color-low" type="s"><default>'#ff5c5c'</default><summary>Trend arrow colour when low</summary></key>
+    <key name="arrow-color-in" type="s"><default>'#7ddc7d'</default><summary>Trend arrow colour when in range</summary></key>
+    <key name="arrow-color-high" type="s"><default>'#ffb84d'</default><summary>Trend arrow colour when high</summary></key>
+    <key name="arrow-same-as-value" type="b">
+      <default>true</default>
+      <summary>Use the glucose value colours for the arrow too</summary>
+    </key>
+
+    <!-- stale data -->
+    <key name="stale-minutes" type="i">
+      <range min="5" max="120"/>
+      <default>15</default>
+      <summary>Minutes without a reading before the top bar shows the data as stale</summary>
+    </key>
+    <key name="stale-color" type="s">
+      <default>'#8a8a8a'</default>
+      <summary>Colour for stale data</summary>
+    </key>
+
+    <!-- history -->
+    <key name="history-mode" type="s">
+      <choices><choice value='dropdown'/><choice value='window'/></choices>
+      <default>'dropdown'</default>
+      <summary>Show the history as a dropdown or as a separate window</summary>
+    </key>
+    <key name="graph-show-line" type="b"><default>true</default><summary>Draw a line through the readings</summary></key>
+    <key name="graph-smooth" type="b"><default>true</default><summary>Smooth curve instead of straight segments</summary></key>
+    <key name="graph-line-width" type="d"><default>2.0</default><summary>Line width (pixels)</summary></key>
+    <key name="graph-line-color-mode" type="s">
+      <choices><choice value='range'/><choice value='single'/></choices>
+      <default>'range'</default>
+      <summary>Colour the line by range, or one colour</summary>
+    </key>
+    <key name="graph-line-color" type="s"><default>'#e0e0e0'</default><summary>Line colour when using one colour</summary></key>
+    <key name="graph-show-dots" type="b"><default>false</default><summary>Show a dot for every reading</summary></key>
+    <key name="graph-gap-minutes" type="i">
+      <range min="6" max="120"/>
+      <default>15</default>
+      <summary>Break the line where readings are further apart than this</summary>
+    </key>
+    <key name="graph-hours" type="d">
+      <range min="1" max="48"/>
+      <default>48</default>
+      <summary>Hours shown in the graph (mouse-wheel zoom, remembered)</summary>
+    </key>
+    <key name="dropdown-width" type="i"><default>560</default><summary>Dropdown graph width</summary></key>
+    <key name="dropdown-height" type="i"><default>260</default><summary>Dropdown graph height</summary></key>
+    <key name="window-width" type="i"><default>720</default><summary>History window width</summary></key>
+    <key name="window-height" type="i"><default>320</default><summary>History window height</summary></key>
+  </schema>
+</schemalist>
