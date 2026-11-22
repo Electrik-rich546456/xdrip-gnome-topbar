@@ -5,5 +5,5 @@
   "shell-version": ["46"],
   "session-modes": ["user", "unlock-dialog"],
   "settings-schema": "org.gnome.shell.extensions.xdrip-topbar",
-  "version": 5
+  "version": 6
 }

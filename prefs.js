@@ -8,7 +8,7 @@ import GLib from 'gi://GLib';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-import {dataDir} from './common.js';
+import {dataDir, syncKeyFromQrText} from './common.js';
 import {lookupKey, storeKey, clearKey} from './secret.js';
 
 function rgbaToHex(c) {
@@ -79,7 +79,8 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         // --- sync key
         const keyGroup = new Adw.PreferencesGroup({
             title: 'xDrip+ Cloud Sync',
-            description: 'The sync key is stored in your GNOME Keyring. It is never shown here, ' +
+            description: 'Make sure “Use xDrip Cloud” is on in xDrip+ › Settings › xDrip+ Sync Settings on your ' +
+                'master phone. The sync key is stored in your GNOME Keyring. It is never shown here, ' +
                 'never saved in plain text and never put on the collector’s command line.',
         });
         const status = new Adw.ActionRow({title: 'Saved sync key', subtitle: 'Checking…'});
@@ -91,13 +92,8 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         });
         refresh();
 
-        const entry = new Adw.PasswordEntryRow({title: 'Enter a new sync key', show_apply_button: true});
-        entry.connect('apply', () => {
-            const key = entry.text.trim();
-            if (!key)
-                return;
+        const saveKey = key => {
             storeKey(key, ok => {
-                entry.text = '';
                 if (ok) {
                     s.set_int('key-stamp', s.get_int('key-stamp') + 1);     // tells the extension to restart the collector
                     const warn = key.length <= 16 ? ' (warning: xDrip+ keys are usually longer than 16 characters)' : '';
@@ -107,6 +103,78 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
                 }
                 refresh();
             });
+        };
+        // accepts the key itself, or the text of the xDrip+ settings QR code (xdpref:… / xdp2:…)
+        const useText = (text, emptyMsg) => {
+            let key = (text || '').trim();
+            try {
+                key = syncKeyFromQrText(key) ?? key;
+            } catch (e) {
+                window.add_toast(new Adw.Toast({title: `QR code: ${e.message}`, timeout: 6}));
+                return;
+            }
+            if (!key) {
+                window.add_toast(new Adw.Toast({title: emptyMsg}));
+                return;
+            }
+            saveKey(key);
+        };
+
+        const entry = new Adw.PasswordEntryRow({
+            title: 'Paste the sync key, or the scanned QR text (xdpref:…)',
+            show_apply_button: true,
+        });
+        entry.connect('apply', () => {
+            const text = entry.text;
+            entry.text = '';
+            if (text.trim())
+                useText(text, 'Nothing to save');
+        });
+
+        // a screenshot / photo of the QR code, read with zbarimg (package zbar-tools)
+        const qrRow = new Adw.ActionRow({
+            title: 'Read the QR code from a screenshot',
+            subtitle: 'xDrip+ › Settings › Show Settings QR codes › xDrip+ security key settings only. ' +
+                'Needs zbar-tools (sudo apt install zbar-tools). Delete the screenshot afterwards.',
+        });
+        const qrBtn = new Gtk.Button({label: 'Choose image…', valign: Gtk.Align.CENTER});
+        qrRow.add_suffix(qrBtn);
+        qrBtn.connect('clicked', () => {
+            const filter = new Gtk.FileFilter({name: 'Images'});
+            filter.add_mime_type('image/*');
+            const filters = new Gio.ListStore({item_type: Gtk.FileFilter});
+            filters.append(filter);
+            const dlg = new Gtk.FileDialog({title: 'Screenshot of the xDrip+ QR code', modal: true, filters});
+            dlg.open(window, null, (d, res) => {
+                let path;
+                try {
+                    path = d.open_finish(res)?.get_path();
+                } catch (e) {
+                    return;                                          // cancelled
+                }
+                if (!path)
+                    return;
+                let proc;
+                try {
+                    proc = Gio.Subprocess.new(['zbarimg', '--raw', '-q', path],
+                        Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE);
+                } catch (e) {
+                    window.add_toast(new Adw.Toast({title: 'zbarimg not found — sudo apt install zbar-tools', timeout: 6}));
+                    return;
+                }
+                proc.communicate_utf8_async(null, null, (p, r) => {
+                    let out = '';
+                    try {
+                        [, out] = p.communicate_utf8_finish(r);
+                    } catch (e) { /* ignore */ }
+                    const line = (out || '').split('\n').find(l => l.startsWith('xdpref:') || l.startsWith('xdp2:'));
+                    if (!line) {
+                        window.add_toast(new Adw.Toast({title: 'No xDrip+ settings QR code found in that image', timeout: 6}));
+                        return;
+                    }
+                    useText(line, 'No sync key found');
+                });
+            });
         });
         removeBtn.connect('clicked', () => clearKey(() => {
             s.set_int('key-stamp', s.get_int('key-stamp') + 1);
@@ -114,6 +182,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
             refresh();
         }));
         keyGroup.add(entry);
+        keyGroup.add(qrRow);
         keyGroup.add(status);
         page.add(keyGroup);
 

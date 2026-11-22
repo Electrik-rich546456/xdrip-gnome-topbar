@@ -446,3 +446,52 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     const where = v0.offsetMs > 60000 ? ` to ${fmtTime12(tEnd)}` : '';
     text(cr, `${fmtSpan(v0.spanHours)}${where} · mmol/L`, w - padR, fs * 1.35, 'right');
 }
+
+// ---------------------------------------------------------------- xDrip+ settings QR code
+/**
+ * Pulls the sync key out of the text of xDrip+'s "Show Settings QR codes" › "xDrip+ security key
+ * settings only" code: 'xdpref:' + base64 of zlib-compressed JSON, or the binary 'xdp2:' variant.
+ * Returns the key, or null if the text is not a QR export (then it is treated as the key itself).
+ * Throws if it is a QR export without a sync key in it.
+ */
+export function syncKeyFromQrText(text) {
+    text = (text || '').trim();
+    let body, format;
+    if (text.startsWith('xdpref:')) {
+        body = text.slice(7);
+        format = Gio.ZlibCompressorFormat.ZLIB;
+    } else if (text.startsWith('xdp2:')) {
+        body = text.slice(5);
+        format = Gio.ZlibCompressorFormat.GZIP;
+    } else {
+        return null;
+    }
+    body = body.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '');
+    body += '='.repeat((4 - body.length % 4) % 4);
+    const packed = GLib.base64_decode(body);
+    const input = new Gio.ConverterInputStream({
+        base_stream: Gio.MemoryInputStream.new_from_bytes(new GLib.Bytes(packed)),
+        converter: new Gio.ZlibDecompressor({format}),
+    });
+    const out = Gio.MemoryOutputStream.new_resizable();
+    out.splice(input, Gio.OutputStreamSpliceFlags.CLOSE_SOURCE | Gio.OutputStreamSpliceFlags.CLOSE_TARGET, null);
+    const data = out.steal_as_bytes().toArray();
+
+    let prefs = {};
+    if (format === Gio.ZlibCompressorFormat.ZLIB) {
+        prefs = JSON.parse(new TextDecoder().decode(data));
+    } else {                     // int16 count, then [int16 keylen, key, int16 vallen, value]*, big-endian
+        const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+        let i = 2;
+        for (let n = dv.getInt16(0); n > 0; n--) {
+            const kl = dv.getInt16(i); i += 2;
+            const k = new TextDecoder().decode(data.subarray(i, i + kl)); i += kl;
+            const vl = dv.getInt16(i); i += 2;
+            prefs[k] = new TextDecoder().decode(data.subarray(i, i + vl)); i += vl;
+        }
+    }
+    const key = prefs.custom_sync_key;
+    if (!key)
+        throw new Error('this QR code has no sync key in it — use “xDrip+ security key settings only”');
+    return String(key).trim();
+}

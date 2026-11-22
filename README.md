@@ -21,7 +21,33 @@ gnome-extensions prefs  xdrip-topbar@local
 
 In Settings, enter your sync key and choose the data folder.
 
-You need: `python3-cryptography`, `gjs` and `gir1.2-secret-1`. The installer tells you if any of them are missing.
+You need: `python3-cryptography`, `gjs` and `gir1.2-secret-1`. The installer tells you if any of them are missing. To read the QR code from a screenshot you also need `zbar-tools`, which is optional.
+
+## Getting your sync key
+
+The collector joins your xDrip+ sync group using your **Handset Group Security Sync Key**. Do everything below on your **master** phone, the one connected to the sensor.
+
+**First, check sync is on:** in xDrip+, go to **Settings › xDrip+ Sync Settings**. Make sure **Be master for followers** and **Use xDrip Cloud** are both ticked. If you can't find xDrip+ Sync Settings, look under **Less Common Settings**.
+
+Then use any one of these three ways to get the key into the extension. In each case, open the extension's settings first with `gnome-extensions prefs xdrip-topbar@local`, or from the top-bar menu › Settings.
+
+### A. Screenshot of the QR code (easiest)
+1. In xDrip+, go to **Settings › Show Settings QR codes**, near the bottom, and choose **xDrip+ security key settings only**.
+2. Take a screenshot and copy it to your PC.
+3. In the extension's settings, under **Collector › xDrip+ Cloud Sync**, click **Read the QR code from a screenshot › Choose image…**. This needs `sudo apt install zbar-tools`.
+4. **Delete the screenshot afterwards.** It contains your key.
+
+### B. Paste the scanned QR text
+1. Show the same QR code as in A.
+2. Scan it with any QR scanner app, such as your phone camera or Google Lens on another phone.
+3. Copy the text. It starts with `xdpref:` or `xdp2:`.
+4. Paste it into **Paste the sync key, or the scanned QR text** and press ✓. The extension takes the key out of the text by itself.
+
+### C. Type the key
+1. In xDrip+, go to **Settings › xDrip+ Sync Settings › Handset Group Security Sync Key**, and copy or write down the value.
+2. Paste or type it into **Paste the sync key, or the scanned QR text** and press ✓.
+
+The key is saved in GNOME Keyring and is never shown again. Anyone with your key can read your glucose data, so treat it like a password. Within a few minutes the top bar shows your reading. If it doesn't, the menu's status line and `collector.log` in your data folder will say why.
 
 ## How it works
 

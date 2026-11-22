@@ -10,6 +10,7 @@ missing=0
 python3 -c "import cryptography" 2>/dev/null || { echo "  missing: python3 cryptography  (sudo apt install python3-cryptography)"; missing=1; }
 command -v gjs >/dev/null || { echo "  missing: gjs  (sudo apt install gjs)"; missing=1; }
 gjs -c "imports.gi.versions.Secret='1'; imports.gi.Secret" 2>/dev/null || { echo "  missing: libsecret typelib  (sudo apt install gir1.2-secret-1)"; missing=1; }
+command -v zbarimg >/dev/null || echo "  optional: zbar-tools, to read the xDrip+ QR code from a screenshot  (sudo apt install zbar-tools)"
 [ "$missing" = 0 ] || { echo "Install the missing packages, then run this again."; exit 1; }
 
 # back up your settings first (they live in dconf and are kept anyway; this is just a safety net)
