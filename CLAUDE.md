@@ -12,6 +12,12 @@
 - `history.json` and `latest.json` must stay readable by both older and newer versions. Only add fields, and keep `version: 1` unless a migration is written.
 - `install.sh` must never delete the data folder, the settings or the keyring entry.
 
+## Windows app (`windows/`, branch `windows`)
+- `settings.json` keys follow the same rule as the GSettings keys: only add keys, never rename, retype or remove them.
+- Never change the Credential Manager entry: service `xdrip-topbar`, user `sync-key`.
+- Never change the default folders: `%APPDATA%\xdrip-topbar` and `%LOCALAPPDATA%\xdrip-topbar`.
+- Increase `VERSION` in `windows/xdrip_tray.py` for each Windows release. The workflow publishes it as the GitHub Release `windows-v<VERSION>`. Never upload Actions artifacts.
+
 ## Each release
 - Increase `"version"` in `metadata.json`.
 - Run `python3 collector/xdrip_gnome_collector.py --selftest`.

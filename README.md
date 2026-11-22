@@ -6,6 +6,8 @@ A GNOME Shell extension that shows your latest [xDrip+](https://github.com/Night
 
 *The preview above is drawn from made-up readings.*
 
+**Windows users:** there's a Windows tray app with a floating widget. Download `xDripTray.exe` from [Releases](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) and follow the [Windows instructions](windows/README.md).
+
 > **Not a medical device.** This is a convenience display. Don't base treatment decisions on it, and rely on xDrip+ itself for alarms. Readings can be late, missing or wrong.
 
 Shows your latest xDrip+ reading in the top bar, as `6.4 → 3m` (mmol/L, trend arrow, minutes since the reading). Click it to see a 48-hour graph styled like the xDrip+ main screen: dots coloured by range, the target band shaded, insulin as blue ▼ and carbs as orange ●, finger-sticks as red dots, and all times on a 12-hour clock.

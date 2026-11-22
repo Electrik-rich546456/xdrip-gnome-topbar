@@ -22,7 +22,11 @@ Needs: python3 and the 'cryptography' package.
 """
 
 import argparse
-import fcntl
+try:
+    import fcntl                     # Linux / macOS
+except ImportError:                  # Windows
+    fcntl = None
+    import msvcrt
 import gzip
 import hashlib
 import json
@@ -309,7 +313,14 @@ def write_json_atomic(path, doc):
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(doc, fh, separators=(",", ":"))
-        os.replace(tmp, path)
+        for attempt in range(10):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:          # Windows: the file is open in another program for a moment
+                if attempt == 9:
+                    raise
+                time.sleep(0.1)
     except BaseException:
         try:
             os.unlink(tmp)
@@ -462,6 +473,17 @@ class Follower:
         self.on_event, self.on_status = on_event, on_status
         self.passive, self.name = passive, name
         self.stop = threading.Event()
+        self.sock = None
+
+    def shutdown(self):
+        """Stop from another thread: ends run() within a moment instead of at the next timeout."""
+        self.stop.set()
+        s = self.sock
+        if s is not None:
+            try:
+                s.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
 
     def run(self):
         backoff = 5
@@ -484,6 +506,7 @@ class Follower:
         log("connecting to %s:%d" % (self.host, self.port))
         sock = socket.create_connection((self.host, self.port), timeout=45)
         sock.settimeout(WAIT_PING_TIMEOUT_S)
+        self.sock = sock
         ls = LineSocket(sock)
         try:
             ls.send("%s\n%s\n%s\n" % (SUPPORTED_VERSIONS, self.token, self.topic))
@@ -509,6 +532,7 @@ class Follower:
                 last_heard = time.monotonic()
                 self._handle(ls, line)
         finally:
+            self.sock = None
             try:
                 sock.close()
             except OSError:
@@ -560,7 +584,11 @@ def take_lock(folder, takeover=True):
 
     def try_lock():
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if fcntl is not None:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
             return True
         except OSError:
             return False
@@ -568,7 +596,8 @@ def take_lock(folder, takeover=True):
     if not try_lock():
         old = None
         try:
-            old = int(os.pread(fd, 32, 0).decode().strip() or 0)
+            os.lseek(fd, 0, os.SEEK_SET)
+            old = int(os.read(fd, 32).decode().strip() or 0)
         except (OSError, ValueError):
             pass
         if not takeover or not old or old == os.getpid() or not _is_collector(old):
@@ -592,7 +621,8 @@ def take_lock(folder, takeover=True):
             os.close(fd)
             return None
     os.ftruncate(fd, 0)
-    os.pwrite(fd, str(os.getpid()).encode(), 0)
+    os.lseek(fd, 0, os.SEEK_SET)
+    os.write(fd, str(os.getpid()).encode())
     return fd
 
 
@@ -811,6 +841,12 @@ def selftest():
 
     store2 = Store(folder, False, None)
     check(len(store2.readings) == 3 and len(store2.treatments) == 2, "history survives a restart")
+    if fcntl is None:                                    # Windows: single in-process collector, no takeover
+        check(take_lock(folder, takeover=False) is not None, "data folder lock taken")
+        rc = json.loads(rollcall_json(DEFAULT_NAME))
+        check(rc["device_name"] == "gnome_info_collector", "roll call name gnome_info_collector")
+        print("\nSELF TEST", "PASSED" if ok else "FAILED")
+        return 0 if ok else 1
     import subprocess
     holder = subprocess.Popen([sys.executable, os.path.abspath(__file__), "--hold-lock", folder])
     time.sleep(0.8)
