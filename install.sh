@@ -12,6 +12,15 @@ command -v gjs >/dev/null || { echo "  missing: gjs  (sudo apt install gjs)"; mi
 gjs -c "imports.gi.versions.Secret='1'; imports.gi.Secret" 2>/dev/null || { echo "  missing: libsecret typelib  (sudo apt install gir1.2-secret-1)"; missing=1; }
 [ "$missing" = 0 ] || { echo "Install the missing packages, then run this again."; exit 1; }
 
+# back up your settings first (they live in dconf and are kept anyway; this is just a safety net)
+SETTINGS_PATH="/org/gnome/shell/extensions/xdrip-topbar/"
+BACKUP="$HOME/.local/share/xdrip-topbar-settings-backup.ini"
+if command -v dconf >/dev/null && [ -n "$(dconf dump "$SETTINGS_PATH" 2>/dev/null)" ]; then
+    mkdir -p "$(dirname "$BACKUP")"
+    dconf dump "$SETTINGS_PATH" > "$BACKUP"
+    echo "Settings backed up to $BACKUP"
+fi
+
 # stop a collector left running by the previous version (the new one would also replace it itself)
 if pkill -f "$UUID/collector/xdrip_gnome_collector.py" 2>/dev/null; then
     echo "Stopped the previous collector."

@@ -38,6 +38,19 @@ You need: `python3-cryptography`, `gjs` and `gir1.2-secret-1`. The installer tel
   - `.collector_token`, `.collector.lock`: internal files the collector uses
 - **Treatments.** Insulin and carbs only arrive while the collector is running, at the moment you enter or edit them on the phone. Anything entered while it was off won't be in the graph.
 
+## Updating keeps your settings
+
+Running `./install.sh` again only replaces the program files.
+- **Your settings** (colours, range, position, zoom, sizes, data folder…) are stored in GNOME's settings database (dconf), not in the extension folder, so updates don't touch them.
+- **Your sync key** stays in GNOME Keyring.
+- **Your collected data** stays in your data folder.
+
+As a safety net, the installer saves a copy of your settings to `~/.local/share/xdrip-topbar-settings-backup.ini` before every update. To restore it:
+
+```sh
+dconf load /org/gnome/shell/extensions/xdrip-topbar/ < ~/.local/share/xdrip-topbar-settings-backup.ini
+```
+
 ## Graph controls
 
 | Action | What it does |
