@@ -6,7 +6,7 @@ A GNOME Shell extension that shows your latest [xDrip+](https://github.com/Night
 
 *The preview above is drawn from made-up readings.*
 
-**Windows users:** there's a Windows tray app with a floating widget. Download `xDripTray.exe` from [Releases](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) and follow the [Windows instructions](windows/README.md).
+**Windows users:** there's a Windows tray app with a floating widget. Download `xDripTray.exe` from [Releases](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) and follow the [Windows instructions](windows/README.md). Windows releases are built only by GitHub Actions from this repository, and each one comes with a GitHub build attestation. See the [code signing policy](CODE_SIGNING_POLICY.md).
 
 > **Not a medical device.** This is a convenience display. Don't base treatment decisions on it, and rely on xDrip+ itself for alarms. Readings can be late, missing or wrong.
 

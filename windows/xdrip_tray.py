@@ -35,7 +35,7 @@ import xdrip_gnome_collector as col      # noqa: E402  (shared with the GNOME ex
 import graph                              # noqa: E402
 
 APP_NAME = "xDrip+ Tray"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 KEYRING_SERVICE = "xdrip-topbar"
 KEYRING_USER = "sync-key"
 IS_WINDOWS = sys.platform == "win32"

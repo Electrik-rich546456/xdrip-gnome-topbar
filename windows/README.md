@@ -16,8 +16,14 @@ The app follows **xDrip+ Cloud Sync** by itself, like a follower phone. You don'
 2. Download **`xDripTray.exe`**.
 3. Put it somewhere permanent, for example a new folder `C:\Users\<you>\Apps\xDripTray\`. It's a single file, so there's no installer.
 
-**"Windows protected your PC" warning:** the .exe isn't code-signed, so Windows SmartScreen will warn you the first time you run it. Click **More info › Run anyway**. You can check the download against `xDripTray.exe.sha256` from the same release:
+**If Windows shows "Windows protected your PC":** Windows SmartScreen shows this the first time you run a new app that isn't yet widely downloaded or code-signed. This app is a small open-source project, and free code signing through the [SignPath Foundation](https://signpath.org) is planned (see the [code signing policy](../CODE_SIGNING_POLICY.md)). Click **More info › Run anyway**. Windows won't ask again for this file.
+
+**Checking that the file is genuine (optional):** every release is built by GitHub Actions from this public repository, and GitHub signs a record of each build. You can check it either way:
 ```powershell
+# with the GitHub CLI (https://cli.github.com):
+gh attestation verify .\xDripTray.exe --repo Electrik-rich546456/xdrip-gnome-topbar
+
+# or compare the checksum with xDripTray.exe.sha256 from the same release:
 Get-FileHash .\xDripTray.exe -Algorithm SHA256
 ```
 
