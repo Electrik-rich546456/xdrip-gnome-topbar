@@ -12,7 +12,7 @@ export const ARROWS = {
     FortyFiveDown: '↘', SingleDown: '↓', DoubleDown: '⇊', NotComputable: '?',
 };
 
-// Same thresholds as xDrip+ BgReading.getSlopeOrdinal(), used when a reading has no trend name.
+// Same thresholds as xDrip BgReading.getSlopeOrdinal(), used when a reading has no trend name.
 export function trendFromSlope(slopePerMin) {
     if (slopePerMin === undefined || slopePerMin === null) return 'NotComputable';
     if (slopePerMin <= -3.5) return 'DoubleDown';
@@ -32,6 +32,17 @@ export function arrowFor(reading) {
 export function mmolOf(reading) {
     if (!reading) return null;
     return reading.mgdl !== undefined ? reading.mgdl / 18.0182 : reading.mmol;
+}
+
+export const MGDL_PER_MMOL = 18.0182;
+
+/** Glucose (given in mmol/L) as text in the chosen units: '6.4' or '115'. */
+export function fmtGlucose(mmol, units) {
+    return units === 'mgdl' ? String(Math.round(mmol * MGDL_PER_MMOL)) : mmol.toFixed(1);
+}
+
+export function unitLabel(units) {
+    return units === 'mgdl' ? 'mg/dL' : 'mmol/L';
 }
 
 /** 'low' | 'in' | 'high' */
@@ -68,6 +79,7 @@ export function graphOptions(settings) {
         dots: settings.get_boolean('graph-show-dots'),
         gapMs: settings.get_int('graph-gap-minutes') * 60000,
         spanHours: settings.get_double('graph-hours'),
+        units: settings.get_string('units'),
     };
 }
 
@@ -248,7 +260,7 @@ function fmtSpan(hours) {
 }
 
 /**
- * Draws the history in the style of the xDrip+ main graph: line and/or dots coloured by range,
+ * Draws the history in the style of the xDrip main graph: line and/or dots coloured by range,
  * shaded target band, insulin (blue ▼) and carbs (orange ●) markers.
  *   history: parsed history.json (or null)    opts: graphOptions(settings)
  *   view: {spanHours, offsetMs} (default: the whole 48 h ending now)
@@ -278,15 +290,19 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     cr.selectFontFace('Sans', 0 /* normal */, 0 /* normal */);
     cr.setFontSize(fs);
 
-    // vertical scale: at least 2-15 mmol/L, grows to fit what is on screen, top rounded to a label
+    // vertical scale: at least 2-15 mmol/L (36-270 mg/dL), grows to fit what is on screen, top rounded
+    // to a label. Internally everything stays in mmol/L; only the labels use the chosen units.
+    const mgdl = opts.units === 'mgdl';
+    const k = mgdl ? MGDL_PER_MMOL : 1;
     let lo = 2, hi = 15;
     for (const r of visible) {
         const v = mmolOf(r);
         lo = Math.min(lo, Math.floor(v));
         hi = Math.max(hi, v + 1);
     }
-    const yStep = hi - lo > 20 ? 5 : 3;
-    const vMin = lo, vMax = Math.ceil(hi / yStep) * yStep;
+    const loD = mgdl ? Math.floor(lo * k / 10) * 10 : lo;
+    const yStep = mgdl ? (hi * k - loD > 360 ? 100 : 50) : (hi - lo > 20 ? 5 : 3);   // in display units
+    const vMin = loD / k, vMax = Math.ceil(hi * k / yStep) * yStep / k;
     const X = t => padL + (t - t0) / span * pw;
     const Y = v => padT + ph - (v - vMin) / (vMax - vMin) * ph;
     const clampY = y => Math.max(padT + 2, Math.min(padT + ph - 2, y));
@@ -307,14 +323,15 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
 
     // y grid + labels
     cr.setSourceRGBA(1, 1, 1, 0.55);
-    for (let v = Math.ceil(vMin / yStep) * yStep; v <= vMax; v += yStep) {
+    for (let vD = Math.ceil(vMin * k / yStep - 1e-9) * yStep; vD <= vMax * k + 1e-9; vD += yStep) {
+        const v = vD / k;
         const y = Math.round(Y(v)) + 0.5;
         cr.setSourceRGBA(1, 1, 1, 0.07);
         cr.moveTo(padL, y);
         cr.lineTo(padL + pw, y);
         cr.stroke();
         cr.setSourceRGBA(1, 1, 1, 0.55);
-        text(cr, String(v), padL - 5, y + fs * 0.35, 'right');
+        text(cr, String(Math.round(vD)), padL - 5, y + fs * 0.35, 'right');
     }
 
     // x grid: local-time marks on a 12 h clock, day name at midnight
@@ -397,7 +414,7 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
         cr.fill();
     }
 
-    // treatments: like xDrip+, placed on the glucose line with the amount written next to it
+    // treatments: like xDrip, placed on the glucose line with the amount written next to it
     cr.setFontSize(fs * 0.9);
     for (const t of treatments) {
         const x = X(Math.min(t.t, nowMs));
@@ -429,10 +446,10 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     if (last) {
         const v = mmolOf(last);
         const prev = all[all.length - 2];
-        let head = `${v.toFixed(1)} mmol/L ${arrowFor(last)}`;
+        let head = `${fmtGlucose(v, opts.units)} ${unitLabel(opts.units)} ${arrowFor(last)}`;
         if (prev && last.t - prev.t < 16 * 60000) {
             const d = v - mmolOf(prev);
-            head += `  ${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}`;
+            head += `  ${d >= 0 ? '+' : '−'}${fmtGlucose(Math.abs(d), opts.units)}`;
         }
         setColor(cr, opts.colors[rangeOf(v, opts.low, opts.high)]);
         text(cr, head, padL, fs * 1.35);
@@ -444,12 +461,12 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     }
     cr.setSourceRGBA(1, 1, 1, 0.45);
     const where = v0.offsetMs > 60000 ? ` to ${fmtTime12(tEnd)}` : '';
-    text(cr, `${fmtSpan(v0.spanHours)}${where} · mmol/L`, w - padR, fs * 1.35, 'right');
+    text(cr, `${fmtSpan(v0.spanHours)}${where} · ${unitLabel(opts.units)}`, w - padR, fs * 1.35, 'right');
 }
 
-// ---------------------------------------------------------------- xDrip+ settings QR code
+// ---------------------------------------------------------------- xDrip settings QR code
 /**
- * Pulls the sync key out of the text of xDrip+'s "Show Settings QR codes" › "xDrip+ security key
+ * Pulls the sync key out of the text of xDrip's "Show Settings QR codes" › "xDrip security key
  * settings only" code: 'xdpref:' + base64 of zlib-compressed JSON, or the binary 'xdp2:' variant.
  * Returns the key, or null if the text is not a QR export (then it is treated as the key itself).
  * Throws if it is a QR export without a sync key in it.
@@ -492,6 +509,6 @@ export function syncKeyFromQrText(text) {
     }
     const key = prefs.custom_sync_key;
     if (!key)
-        throw new Error('this QR code has no sync key in it — use “xDrip+ security key settings only”');
+        throw new Error('this QR code has no sync key in it — use “xDrip security key settings only”');
     return String(key).trim();
 }

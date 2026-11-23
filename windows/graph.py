@@ -69,6 +69,15 @@ def arrow_for(r):
     return ARROWS.get(r.get("trend")) or ARROWS[trend_from_slope(r.get("slope"))]
 
 
+def fmt_glucose(mmol, units):
+    """'6.4' (mmol/L) or '115' (mg/dL)."""
+    return "%d" % round(mmol * MGDL_PER_MMOL) if units == "mgdl" else "%.1f" % mmol
+
+
+def unit_label(units):
+    return "mg/dL" if units == "mgdl" else "mmol/L"
+
+
 def range_of(v, low, high):
     return "low" if v < low else "high" if v > high else "in"
 
@@ -227,12 +236,17 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
     S = lambda v: v * SS
     f_main, f_small = font(S(fs)), font(S(fs * 0.9))
 
+    # internally mmol/L; only the labels use the chosen units
+    units = opts.get("units", "mmol")
+    mgdl = units == "mgdl"
+    k = MGDL_PER_MMOL if mgdl else 1.0
     lo, hi = 2.0, 15.0
     for r in visible:
         v = mmol_of(r)
         lo, hi = min(lo, math.floor(v)), max(hi, v + 1)
-    y_step = 5 if hi - lo > 20 else 3
-    v_min, v_max = lo, math.ceil(hi / y_step) * y_step
+    lo_d = math.floor(lo * k / 10) * 10 if mgdl else lo
+    y_step = (100 if hi * k - lo_d > 360 else 50) if mgdl else (5 if hi - lo > 20 else 3)
+    v_min, v_max = lo_d / k, math.ceil(hi * k / y_step) * y_step / k
     X = lambda t: S(pad_l + (t - t0) / span * pw)
     Y = lambda v: S(pad_t + ph - (v - v_min) / (v_max - v_min) * ph)
     top, bottom = S(pad_t), S(pad_t + ph)
@@ -249,12 +263,12 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
             x += S(7)
 
     # y grid
-    v = math.ceil(v_min / y_step) * y_step
-    while v <= v_max:
-        y = Y(v)
+    v_d = math.ceil(v_min * k / y_step - 1e-9) * y_step
+    while v_d <= v_max * k + 1e-9:
+        y = Y(v_d / k)
         dr.line([left, y, right, y], fill=(255, 255, 255, 18), width=SS)
-        dr.text((left - S(5), y), str(int(v)), font=f_main, fill=(255, 255, 255, 140), anchor="rm")
-        v += y_step
+        dr.text((left - S(5), y), str(int(round(v_d))), font=f_main, fill=(255, 255, 255, 140), anchor="rm")
+        v_d += y_step
 
     # x grid: 12 h clock, day name at midnight
     px_per_min = pw / (span / 60000)
@@ -317,7 +331,7 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
         r_ = S(rad + 1.5)
         dr.ellipse([x - r_, y - r_, x + r_, y + r_], fill=hex_rgb(FINGER_COLOR))
 
-    # treatments on the glucose line, amount written next to them (like xDrip+)
+    # treatments on the glucose line, amount written next to them (like xDrip)
     clamp_y = lambda y: max(top + S(2), min(bottom - S(2), y))
     for t in treatments:
         x = X(min(t["t"], now_ms))
@@ -341,10 +355,10 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
     if allr:
         last = allr[-1]
         v = mmol_of(last)
-        head = "%.1f mmol/L %s" % (v, arrow_for(last))
+        head = "%s %s %s" % (fmt_glucose(v, units), unit_label(units), arrow_for(last))
         if len(allr) > 1 and last["t"] - allr[-2]["t"] < 16 * 60000:
             dlt = v - mmol_of(allr[-2])
-            head += "  %s%.1f" % ("+" if dlt >= 0 else "−", abs(dlt))
+            head += "  %s%s" % ("+" if dlt >= 0 else "−", fmt_glucose(abs(dlt), units))
         dr.text((left, head_y), head, font=f_main, fill=hex_rgb(colors[range_of(v, low, high)]), anchor="lm")
         x2 = left + dr.textlength(head, font=f_main) + S(fs)
         dr.text((x2, head_y), "at %s" % fmt_time12(last["t"]), font=f_main, fill=(255, 255, 255, 153), anchor="lm")
@@ -352,7 +366,7 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
         dr.text(((left + right) / 2, (top + bottom) / 2), "No readings in the last 48 hours yet",
                 font=f_main, fill=(255, 255, 255, 153), anchor="mm")
     where = " to %s" % fmt_time12(t_end) if v0["offset_ms"] > 60000 else ""
-    dr.text((S(w - pad_r), head_y), "%s%s · mmol/L" % (_fmt_span(v0["span_hours"]), where),
+    dr.text((S(w - pad_r), head_y), "%s%s · %s" % (_fmt_span(v0["span_hours"]), where, unit_label(units)),
             font=f_main, fill=(255, 255, 255, 115), anchor="rm")
 
     return img.resize((w, h), Image.LANCZOS)

@@ -1,4 +1,4 @@
-// xDrip+ Top Bar — GNOME Shell 46
+// xDrip Top Bar — GNOME Shell 46
 //
 // Top bar:  "6.4 → 3m"  (mmol/L, trend arrow, minutes since the reading), colours from settings.
 // Click:    48 h history graph, as a resizable dropdown or (setting) a separate window.
@@ -19,9 +19,9 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {
     arrowFor, mmolOf, rangeOf, dataDir, graphOptions, readJsonAsync, drawGraph, fmtMinutesAgo, fmtTime12,
-    zoomView, panView,
+    zoomView, panView, fmtGlucose,
 } from './common.js';
-import {lookupKey} from './secret.js';
+import {lookupKey, lookupNsSecret} from './secret.js';
 
 const RESTART_DELAY_S = 30;
 const MIN_W = 320, MIN_H = 160, MAX_W = 1800, MAX_H = 1000;
@@ -45,15 +45,21 @@ class Collector {
         if (this._proc || this._starting)
             return;
         this._starting = true;
-        lookupKey(key => {
+        const nightscout = this._settings.get_string('data-source') === 'nightscout';
+        if (nightscout && !this._settings.get_string('nightscout-url').trim()) {
+            this._starting = false;
+            this._setProblem('No Nightscout address set — open Settings');
+            return;
+        }
+        (nightscout ? lookupNsSecret : lookupKey)(key => {
             this._starting = false;
             if (!this._wanted || this._proc)
                 return;
-            if (!key) {
+            if (!key && !nightscout) {
                 this._setProblem('No sync key saved — open Settings');
                 return;
             }
-            this._spawn(key);
+            this._spawn(key ?? '');          // Nightscout sites that are readable without a token: empty
         });
     }
 
@@ -64,7 +70,9 @@ class Collector {
             GLib.mkdir_with_parents(dir, 0o700);
             const script = GLib.build_filenamev([this._ext.path, 'collector', 'xdrip_gnome_collector.py']);
             const argv = [s.get_string('python') || 'python3', '-u', script, '--data-dir', dir, '--key-stdin'];
-            if (s.get_boolean('active'))
+            if (s.get_string('data-source') === 'nightscout')
+                argv.push('--source', 'nightscout', '--ns-url', s.get_string('nightscout-url').trim());
+            else if (s.get_boolean('active'))
                 argv.push('--active', '--name', s.get_string('rollcall-name') || 'gnome_info_collector');
 
             const launcher = new Gio.SubprocessLauncher({
@@ -144,7 +152,7 @@ class Collector {
 const Indicator = GObject.registerClass(
 class XdripIndicator extends PanelMenu.Button {
     _init(ext) {
-        super._init(0.5, 'xDrip+ Top Bar', false);
+        super._init(0.5, 'xDrip Top Bar', false);
         this._ext = ext;
         this._settings = ext.getSettings();
         this._latest = null;
@@ -175,11 +183,12 @@ class XdripIndicator extends PanelMenu.Button {
             this._loadLatest();
             this._collector.restart();
         });
-        on(['active', 'rollcall-name', 'key-stamp', 'python'], () => this._collector.restart());
+        on(['active', 'rollcall-name', 'key-stamp', 'python', 'data-source', 'nightscout-url'],
+            () => this._collector.restart());
         on(['low-mmol', 'high-mmol', 'value-color-low', 'value-color-in', 'value-color-high',
             'arrow-color-low', 'arrow-color-in', 'arrow-color-high', 'arrow-same-as-value',
             'stale-minutes', 'stale-color', 'graph-show-line', 'graph-smooth', 'graph-line-width',
-            'graph-line-color-mode', 'graph-line-color', 'graph-show-dots', 'graph-gap-minutes'], () => {
+            'graph-line-color-mode', 'graph-line-color', 'graph-show-dots', 'graph-gap-minutes', 'units'], () => {
             this._updateLabels();
             this._area.queue_repaint();
         });
@@ -386,7 +395,7 @@ class XdripIndicator extends PanelMenu.Button {
                     this._winProc = null;
             });
         } catch (e) {
-            Main.notifyError('xDrip+ Top Bar', `Could not open the history window: ${e.message}`);
+            Main.notifyError('xDrip Top Bar', `Could not open the history window: ${e.message}`);
         }
     }
 
@@ -459,7 +468,7 @@ class XdripIndicator extends PanelMenu.Button {
         if (!stale && !s.get_boolean('arrow-same-as-value'))
             arrowColor = s.get_string(`arrow-color-${range}`);
 
-        this._value.text = v.toFixed(1);
+        this._value.text = fmtGlucose(v, s.get_string('units'));
         this._arrow.text = ` ${arrowFor(r)}`;
         this._mins.text = ` ${fmtMinutesAgo(r.t, now)}`;
         this._value.style = `color: ${valueColor}; font-weight: bold;`;
@@ -479,6 +488,10 @@ class XdripIndicator extends PanelMenu.Button {
             parts.push(c.problem);
         } else if (!c?.running) {
             parts.push('Collector starting…');
+        } else if (st && st.source === 'nightscout') {
+            parts.push(st.connected ? 'Nightscout: connected' : `Nightscout: connecting… ${st.problem ? `(${st.problem})` : ''}`);
+            if (st.last_message_ms)
+                parts.push(`last checked ${fmtTime12(st.last_message_ms)}`);
         } else if (st) {
             parts.push(st.connected ? 'Connected' : `Connecting… ${st.problem ? `(${st.problem})` : ''}`);
             parts.push(st.active ? `active as ${st.name}` : 'passive');

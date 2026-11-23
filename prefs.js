@@ -1,4 +1,4 @@
-// Settings window for xDrip+ Top Bar (GNOME 46, libadwaita)
+// Settings window for xDrip Top Bar (GNOME 46, libadwaita)
 
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
@@ -8,8 +8,8 @@ import GLib from 'gi://GLib';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-import {dataDir, syncKeyFromQrText} from './common.js';
-import {lookupKey, storeKey, clearKey} from './secret.js';
+import {dataDir, syncKeyFromQrText, fmtGlucose, MGDL_PER_MMOL} from './common.js';
+import {lookupKey, storeKey, clearKey, lookupNsSecret, storeNsSecret, clearNsSecret} from './secret.js';
 
 function rgbaToHex(c) {
     const h = v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0');
@@ -76,10 +76,63 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
     _collectorPage(window, s) {
         const page = new Adw.PreferencesPage({title: 'Collector', icon_name: 'network-receive-symbolic'});
 
+        // --- where the data comes from
+        const srcGroup = new Adw.PreferencesGroup({title: 'Data source'});
+        const sources = ['xdrip-cloud', 'nightscout'];
+        const src = new Adw.ComboRow({
+            title: 'Read readings from',
+            subtitle: 'xDrip Cloud Sync: follows your master phone directly. ' +
+                'Nightscout: for setups that upload everything to a Nightscout site.',
+            model: Gtk.StringList.new(['xDrip Cloud Sync', 'Nightscout']),
+        });
+        src.selected = Math.max(0, sources.indexOf(s.get_string('data-source')));
+        src.connect('notify::selected', () => s.set_string('data-source', sources[src.selected] ?? 'xdrip-cloud'));
+        srcGroup.add(src);
+        page.add(srcGroup);
+
+        // --- Nightscout
+        const nsGroup = new Adw.PreferencesGroup({
+            title: 'Nightscout',
+            description: 'Your Nightscout address, plus an access token. To make one, open your Nightscout site › ' +
+                'Admin Tools › add a subject with the role “readable” and copy its token. Your API secret ' +
+                'works too, but a read-only token is safer. Leave the token empty if your site can be read ' +
+                'without one. Readings are checked every minute; insulin and carbs every 5 minutes.',
+        });
+        const nsUrl = applyEntryRow(s, 'nightscout-url', 'Nightscout address (e.g. https://mysite.example.com)');
+        nsGroup.add(nsUrl);
+        const nsStatus = new Adw.ActionRow({title: 'Saved token / API secret', subtitle: 'Checking…'});
+        const nsRemove = new Gtk.Button({label: 'Remove', valign: Gtk.Align.CENTER, css_classes: ['destructive-action']});
+        nsStatus.add_suffix(nsRemove);
+        const nsRefresh = () => lookupNsSecret(k => {
+            nsStatus.subtitle = k ? 'Saved in the keyring' : 'None saved (fine if your site is readable without one)';
+            nsRemove.sensitive = !!k;
+        });
+        nsRefresh();
+        const nsEntry = new Adw.PasswordEntryRow({title: 'Access token or API secret', show_apply_button: true});
+        nsEntry.connect('apply', () => {
+            const v = nsEntry.text.trim();
+            nsEntry.text = '';
+            if (!v)
+                return;
+            storeNsSecret(v, ok => {
+                if (ok)
+                    s.set_int('key-stamp', s.get_int('key-stamp') + 1);
+                window.add_toast(new Adw.Toast({title: ok ? 'Saved' : 'Could not save to the keyring'}));
+                nsRefresh();
+            });
+        });
+        nsRemove.connect('clicked', () => clearNsSecret(() => {
+            s.set_int('key-stamp', s.get_int('key-stamp') + 1);
+            nsRefresh();
+        }));
+        nsGroup.add(nsEntry);
+        nsGroup.add(nsStatus);
+        page.add(nsGroup);
+
         // --- sync key
         const keyGroup = new Adw.PreferencesGroup({
-            title: 'xDrip+ Cloud Sync',
-            description: 'Make sure “Use xDrip Cloud” is on in xDrip+ › Settings › xDrip+ Sync Settings on your ' +
+            title: 'xDrip Cloud Sync',
+            description: 'Make sure “Use xDrip Cloud” is on in xDrip › Settings › xDrip Sync Settings on your ' +
                 'master phone. The sync key is stored in your GNOME Keyring. It is never shown here, ' +
                 'never saved in plain text and never put on the collector’s command line.',
         });
@@ -96,7 +149,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
             storeKey(key, ok => {
                 if (ok) {
                     s.set_int('key-stamp', s.get_int('key-stamp') + 1);     // tells the extension to restart the collector
-                    const warn = key.length <= 16 ? ' (warning: xDrip+ keys are usually longer than 16 characters)' : '';
+                    const warn = key.length <= 16 ? ' (warning: xDrip keys are usually longer than 16 characters)' : '';
                     window.add_toast(new Adw.Toast({title: `Sync key saved${warn}`}));
                 } else {
                     window.add_toast(new Adw.Toast({title: 'Could not save to the keyring'}));
@@ -104,7 +157,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
                 refresh();
             });
         };
-        // accepts the key itself, or the text of the xDrip+ settings QR code (xdpref:… / xdp2:…)
+        // accepts the key itself, or the text of the xDrip settings QR code (xdpref:… / xdp2:…)
         const useText = (text, emptyMsg) => {
             let key = (text || '').trim();
             try {
@@ -134,7 +187,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         // a screenshot / photo of the QR code, read with zbarimg (package zbar-tools)
         const qrRow = new Adw.ActionRow({
             title: 'Read the QR code from a screenshot',
-            subtitle: 'xDrip+ › Settings › Show Settings QR codes › xDrip+ security key settings only. ' +
+            subtitle: 'xDrip › Settings › Show Settings QR codes › xDrip security key settings only. ' +
                 'Needs zbar-tools (sudo apt install zbar-tools). Delete the screenshot afterwards.',
         });
         const qrBtn = new Gtk.Button({label: 'Choose image…', valign: Gtk.Align.CENTER});
@@ -144,7 +197,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
             filter.add_mime_type('image/*');
             const filters = new Gio.ListStore({item_type: Gtk.FileFilter});
             filters.append(filter);
-            const dlg = new Gtk.FileDialog({title: 'Screenshot of the xDrip+ QR code', modal: true, filters});
+            const dlg = new Gtk.FileDialog({title: 'Screenshot of the xDrip QR code', modal: true, filters});
             dlg.open(window, null, (d, res) => {
                 let path;
                 try {
@@ -169,7 +222,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
                     } catch (e) { /* ignore */ }
                     const line = (out || '').split('\n').find(l => l.startsWith('xdpref:') || l.startsWith('xdp2:'));
                     if (!line) {
-                        window.add_toast(new Adw.Toast({title: 'No xDrip+ settings QR code found in that image', timeout: 6}));
+                        window.add_toast(new Adw.Toast({title: 'No xDrip settings QR code found in that image', timeout: 6}));
                         return;
                     }
                     useText(line, 'No sync key found');
@@ -191,15 +244,26 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
             title: 'Visibility',
             description: 'Passive (default): only listens, sends nothing, does not appear on your phone. ' +
                 'Active: sends the battery and roll-call requests a follower phone sends and appears in ' +
-                'xDrip+ System status › Followers under the name below.',
+                'xDrip System status › Followers under the name below.',
         });
-        const active = new Adw.SwitchRow({title: 'Active', subtitle: 'Announce this computer to the xDrip+ group'});
+        const active = new Adw.SwitchRow({title: 'Active', subtitle: 'Announce this computer to the xDrip group'});
         s.bind('active', active, 'active', Gio.SettingsBindFlags.DEFAULT);
         modeGroup.add(active);
-        const name = applyEntryRow(s, 'rollcall-name', 'Name shown in xDrip+ when active');
+        const name = applyEntryRow(s, 'rollcall-name', 'Name shown in xDrip when active');
         s.bind('active', name, 'sensitive', Gio.SettingsBindFlags.GET);
         modeGroup.add(name);
         page.add(modeGroup);
+
+        // show only the settings for the chosen source
+        const syncSource = () => {
+            const ns = s.get_string('data-source') === 'nightscout';
+            nsGroup.visible = ns;
+            keyGroup.visible = !ns;
+            modeGroup.visible = !ns;
+            src.selected = Math.max(0, sources.indexOf(s.get_string('data-source')));
+        };
+        s.connect('changed::data-source', syncSource);
+        syncSource();
 
         // --- data folder
         const dirGroup = new Adw.PreferencesGroup({
@@ -213,7 +277,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         dirRow.add_suffix(choose);
         dirRow.add_suffix(reset);
         choose.connect('clicked', () => {
-            const dlg = new Gtk.FileDialog({title: 'Folder for xDrip+ data', modal: true});
+            const dlg = new Gtk.FileDialog({title: 'Folder for xDrip data', modal: true});
             try {
                 dlg.set_initial_folder(Gio.File.new_for_path(dataDir(s)));
             } catch (e) { /* folder may not exist yet */ }
@@ -258,9 +322,47 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         posGroup.add(pos);
         page.add(posGroup);
 
-        const range = new Adw.PreferencesGroup({title: 'Target range (mmol/L)'});
-        range.add(spinRow(s, 'low-mmol', 'Low below', null, 2.0, 15.0, 0.1, 1));
-        range.add(spinRow(s, 'high-mmol', 'High above', null, 5.0, 30.0, 0.1, 1));
+        const range = new Adw.PreferencesGroup({title: 'Units and target range'});
+        const unitIds = ['mmol', 'mgdl'];
+        const units = new Adw.ComboRow({
+            title: 'Glucose units',
+            model: Gtk.StringList.new(['mmol/L', 'mg/dL']),
+        });
+        units.selected = Math.max(0, unitIds.indexOf(s.get_string('units')));
+        units.connect('notify::selected', () => s.set_string('units', unitIds[units.selected] ?? 'mmol'));
+        range.add(units);
+        // the limits are stored in mmol/L; these rows show and edit them in the chosen units
+        const limitRow = (key, title, minMmol, maxMmol) => {
+            const row = new Adw.SpinRow({title, adjustment: new Gtk.Adjustment()});
+            let busy = false;
+            const load = () => {
+                busy = true;
+                const mg = s.get_string('units') === 'mgdl';
+                const k = mg ? MGDL_PER_MMOL : 1;
+                row.digits = mg ? 0 : 1;
+                row.adjustment.configure(s.get_double(key) * k, Math.round(minMmol * k), Math.round(maxMmol * k),
+                    mg ? 1 : 0.1, mg ? 10 : 1, 0);
+                row.subtitle = mg ? 'mg/dL' : 'mmol/L';
+                busy = false;
+            };
+            row.connect('notify::value', () => {
+                if (busy)
+                    return;
+                const k = s.get_string('units') === 'mgdl' ? MGDL_PER_MMOL : 1;
+                const mmol = Math.round(row.value / k * 100) / 100;
+                if (Math.abs(mmol - s.get_double(key)) > 0.004)
+                    s.set_double(key, mmol);
+            });
+            s.connect(`changed::${key}`, load);
+            s.connect('changed::units', load);
+            load();
+            return row;
+        };
+        range.add(limitRow('low-mmol', 'Low below', 2.0, 15.0));
+        range.add(limitRow('high-mmol', 'High above', 5.0, 30.0));
+        s.connect('changed::units', () => {
+            units.selected = Math.max(0, unitIds.indexOf(s.get_string('units')));
+        });
         page.add(range);
 
         const colors = new Adw.PreferencesGroup({
@@ -296,8 +398,10 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
                 return `<b><span foreground="${vc}">${v}</span> <span foreground="${ac}">${arrow}</span></b> <small>3m</small>`;
             };
             const st = s.get_string('stale-color');
-            sample.label = [part('low', '3.8', '↘'), part('in', '6.4', '→'), part('high', '12.1', '↗'),
-                `<b><span foreground="${st}">7.2 →</span></b> <small><s><span foreground="${st}">${s.get_int('stale-minutes')}m</span></s></small>`]
+            const u = s.get_string('units');
+            sample.label = [part('low', fmtGlucose(3.8, u), '↘'), part('in', fmtGlucose(6.4, u), '→'),
+                part('high', fmtGlucose(12.1, u), '↗'),
+                `<b><span foreground="${st}">${fmtGlucose(7.2, u)} →</span></b> <small><s><span foreground="${st}">${s.get_int('stale-minutes')}m</span></s></small>`]
                 .join('      ');
         };
         s.connect('changed', update);

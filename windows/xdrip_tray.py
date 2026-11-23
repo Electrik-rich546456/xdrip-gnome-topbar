@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-xDrip+ Tray for Windows: the Windows version of the xDrip+ GNOME top-bar extension.
+xDrip Tray for Windows: the Windows version of the xDrip GNOME top-bar extension.
 
   * Tray icon showing the latest reading (number in the range colour); hover for arrow and minutes
   * Optional small always-on-top widget "6.4 → 3m" you can drag anywhere
   * Click either one for the zoomable 48-hour graph (mouse wheel zoom, Shift+wheel moves in time,
     middle click shows all 48 hours)
-  * Built-in collector following xDrip+ Cloud Sync, passive by default
+  * Built-in collector following xDrip Cloud Sync, passive by default
   * Sync key kept in Windows Credential Manager; paste the key or the scanned QR text, or load a
-    screenshot of the xDrip+ QR code
+    screenshot of the xDrip QR code
 
 Settings:  %APPDATA%\\xdrip-topbar\\settings.json      Data:  %LOCALAPPDATA%\\xdrip-topbar (changeable)
 
-Not a medical device. Rely on xDrip+ for alarms.
+Not a medical device. Rely on xDrip for alarms.
 """
 
 import base64
@@ -34,10 +34,11 @@ for p in (HERE, os.path.join(HERE, "..", "collector")):
 import xdrip_gnome_collector as col      # noqa: E402  (shared with the GNOME extension)
 import graph                              # noqa: E402
 
-APP_NAME = "xDrip+ Tray"
-VERSION = "1.0.1"
+APP_NAME = "xDrip Tray"
+VERSION = "1.1.0"
 KEYRING_SERVICE = "xdrip-topbar"
 KEYRING_USER = "sync-key"
+KEYRING_NS_USER = "nightscout-secret"      # Nightscout access token or API secret (added in 1.1.0)
 IS_WINDOWS = sys.platform == "win32"
 
 
@@ -72,6 +73,9 @@ DEFAULTS = {
     "graph_show_dots": False,
     "graph_gap_minutes": 15,
     "graph_hours": 48.0,
+    "units": "mmol",                       # "mmol" or "mgdl" (limits are stored in mmol/L either way)
+    "data_source": "xdrip-cloud",          # "xdrip-cloud" or "nightscout"
+    "nightscout_url": "",
     # Windows only
     "show_tray": True,
     "show_widget": True,
@@ -119,7 +123,8 @@ class Settings:
                 "line_width": float(self["graph_line_width"]),
                 "line_by_range": self["graph_line_color_mode"] == "range",
                 "line_color": self["graph_line_color"], "dots": bool(self["graph_show_dots"]),
-                "gap_ms": int(self["graph_gap_minutes"]) * 60000, "span_hours": float(self["graph_hours"])}
+                "gap_ms": int(self["graph_gap_minutes"]) * 60000, "span_hours": float(self["graph_hours"]),
+                "units": self["units"]}
 
 
 # ============================================================================ sync key
@@ -136,6 +141,27 @@ def set_key(key):
     keyring.set_password(KEYRING_SERVICE, KEYRING_USER, key)
 
 
+def get_ns_secret():
+    try:
+        import keyring
+        return keyring.get_password(KEYRING_SERVICE, KEYRING_NS_USER)
+    except Exception:
+        return None
+
+
+def set_ns_secret(value):
+    import keyring
+    keyring.set_password(KEYRING_SERVICE, KEYRING_NS_USER, value)
+
+
+def clear_ns_secret():
+    try:
+        import keyring
+        keyring.delete_password(KEYRING_SERVICE, KEYRING_NS_USER)
+    except Exception:
+        pass
+
+
 def clear_key():
     try:
         import keyring
@@ -145,7 +171,7 @@ def clear_key():
 
 
 def sync_key_from_qr_text(text):
-    """The text of xDrip+'s 'xDrip+ security key settings only' QR code -> the sync key.
+    """The text of xDrip's 'xDrip security key settings only' QR code -> the sync key.
     Returns None if the text is not a QR export (then it is the key itself)."""
     text = (text or "").strip()
     if text.startswith("xdpref:"):
@@ -167,12 +193,12 @@ def sync_key_from_qr_text(text):
         return None
     key = prefs.get("custom_sync_key")
     if not key:
-        raise ValueError("this QR code has no sync key in it - use 'xDrip+ security key settings only'")
+        raise ValueError("this QR code has no sync key in it - use 'xDrip security key settings only'")
     return str(key).strip()
 
 
 def qr_text_from_image(path):
-    """Reads an xDrip+ QR code from a screenshot (needs the zxing-cpp package)."""
+    """Reads an xDrip QR code from a screenshot (needs the zxing-cpp package)."""
     import zxingcpp
     from PIL import Image
     for r in zxingcpp.read_barcodes(Image.open(path).convert("RGB")):
@@ -194,11 +220,19 @@ class Collector:
         self.problem = None
 
     def start(self):
-        key = get_key()
-        if not key:
-            self.problem = "No sync key saved - open Settings"
+        nightscout = self.settings["data_source"] == "nightscout"
+        url = (self.settings["nightscout_url"] or "").strip()
+        key = None
+        if nightscout and not url:
+            self.problem = "No Nightscout address set - open Settings"
             self.on_change()
             return
+        if not nightscout:
+            key = get_key()
+            if not key:
+                self.problem = "No sync key saved - open Settings"
+                self.on_change()
+                return
         folder = self.settings.data_dir()
         os.makedirs(folder, exist_ok=True)
         if self.lock_fd is None:
@@ -208,17 +242,31 @@ class Collector:
                 self.on_change()
                 return
             self._lock_folder = folder
-        active = bool(self.settings["active"])
-        name = (self.settings["rollcall_name"] or col.DEFAULT_NAME).strip() or col.DEFAULT_NAME
-        topic, aes_key = col.derive_keys(key)
-        del key
-        with self.lock:
-            self.store = col.Store(folder, active, name)
         self.problem = None
-        self.follower = col.Follower(col.SERVER, col.PORT, col.get_token(folder), topic, aes_key,
-                                     self._event, self._status, passive=not active, name=name)
+        if nightscout:
+            with self.lock:
+                self.store = col.Store(folder, False, None, source="nightscout")
+            self.follower = col.NightscoutFollower(url, get_ns_secret() or "", self._event, self._status,
+                                                   self._treatments)
+        else:
+            active = bool(self.settings["active"])
+            name = (self.settings["rollcall_name"] or col.DEFAULT_NAME).strip() or col.DEFAULT_NAME
+            topic, aes_key = col.derive_keys(key)
+            del key
+            with self.lock:
+                self.store = col.Store(folder, active, name)
+            self.follower = col.Follower(col.SERVER, col.PORT, col.get_token(folder), topic, aes_key,
+                                         self._event, self._status, passive=not active, name=name)
         self.thread = threading.Thread(target=self.follower.run, daemon=True)
         self.thread.start()
+        self.on_change()
+
+    def _treatments(self, items):
+        with self.lock:
+            try:
+                self.store.replace_treatments(items)
+            except Exception as e:
+                col.log("could not store treatments: %s" % e)
         self.on_change()
 
     def stop(self):
@@ -315,7 +363,8 @@ class App:
             self.start_tray()
         if self.settings["show_widget"] or not self.settings["show_tray"]:
             self.show_widget()
-        if not get_key():
+        if (self.settings["data_source"] == "nightscout" and not self.settings["nightscout_url"]) or \
+                (self.settings["data_source"] != "nightscout" and not get_key()):
             self.root.after(300, self.open_settings)
         self.root.after(200, self._pump)
         self.root.after(20000, self._tick)
@@ -356,7 +405,7 @@ class App:
         stale = now - r["t"] >= int(s["stale_minutes"]) * 60000
         vc = s["stale_color"] if stale else s["value_color_" + rng]
         ac = vc if (stale or s["arrow_same_as_value"]) else s["arrow_color_" + rng]
-        return {"value": "%.1f" % v, "arrow": graph.arrow_for(r), "mins": graph.fmt_minutes_ago(r["t"], now),
+        return {"value": graph.fmt_glucose(v, s["units"]), "arrow": graph.arrow_for(r), "mins": graph.fmt_minutes_ago(r["t"], now),
                 "value_color": vc, "arrow_color": ac, "stale": stale, "t": r["t"]}
 
     def status_text(self):
@@ -365,6 +414,12 @@ class App:
             return self.collector.problem
         if not st:
             return "Starting…"
+        if st.get("source") == "nightscout":
+            parts = ["Nightscout: connected" if st.get("connected") else
+                     "Nightscout: connecting…%s" % (" (%s)" % st["problem"] if st.get("problem") else "")]
+            if st.get("last_message_ms"):
+                parts.append("last checked %s" % graph.fmt_time12(st["last_message_ms"]))
+            return " · ".join(parts)
         parts = ["Connected" if st.get("connected") else "Connecting…%s" % (" (%s)" % st["problem"] if st.get("problem") else "")]
         parts.append("active as %s" % st.get("name") if st.get("active") else "passive")
         if st.get("last_message_ms"):
@@ -422,7 +477,8 @@ class App:
         try:
             self.tray.icon = self.tray_image(c)
             if c:
-                tip = "%s mmol/L %s  %s ago%s" % (c["value"], c["arrow"], c["mins"], "  (stale)" if c["stale"] else "")
+                tip = "%s %s %s  %s ago%s" % (c["value"], graph.unit_label(self.settings["units"]), c["arrow"],
+                                               c["mins"], "  (stale)" if c["stale"] else "")
                 tip = tip.replace("now ago", "just now")
             else:
                 tip = "%s - %s" % (APP_NAME, self.status_text())
@@ -573,7 +629,7 @@ class GraphWindow:
         self.app = app
         app.view = {"span_hours": float(app.settings["graph_hours"]), "offset_ms": 0}
         self.top = tk.Toplevel(app.root)
-        self.top.title("xDrip+ — last 48 hours")
+        self.top.title("xDrip — last 48 hours")
         self.top.configure(bg="#1c1c1f")
         self.top.minsize(320, 160)
         try:
@@ -660,28 +716,58 @@ class SettingsWindow:
         # ---------------- collector
         c = ttk.Frame(nb, padding=10)
         nb.add(c, text="Collector")
-        ttk.Label(c, text="xDrip+ sync key", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
-        ttk.Label(c, wraplength=460, justify="left", text=(
-            "On your master phone: xDrip+ › Settings › xDrip+ Sync Settings, tick \"Use xDrip Cloud\". "
-            "Then paste the Handset Group Security Sync Key below, or the text from scanning "
-            "Settings › Show Settings QR codes › xDrip+ security key settings only (starts with xdpref:), "
-            "or load a screenshot of that QR code. The key is kept in Windows Credential Manager.")
-        ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(2, 6))
-        self.key_var = tk.StringVar()
-        ttk.Entry(c, textvariable=self.key_var, show="•", width=46).grid(row=2, column=0, sticky="we")
-        ttk.Button(c, text="Save key", command=self.save_key).grid(row=2, column=1, padx=4)
-        ttk.Button(c, text="QR screenshot…", command=self.load_qr).grid(row=2, column=2)
-        self.key_status = ttk.Label(c, text="")
-        self.key_status.grid(row=3, column=0, sticky="w", pady=4)
-        ttk.Button(c, text="Remove key", command=self.remove_key).grid(row=3, column=1, columnspan=2, sticky="e")
+        srcrow = ttk.Frame(c)
+        srcrow.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+        ttk.Label(srcrow, text="Read readings from:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 8))
+        self.src_var = tk.StringVar(value=s["data_source"])
+        for val, text in (("xdrip-cloud", "xDrip Cloud Sync"), ("nightscout", "Nightscout")):
+            ttk.Radiobutton(srcrow, text=text, value=val, variable=self.src_var,
+                            command=self.change_source).pack(side="left", padx=4)
 
-        ttk.Separator(c).grid(row=4, column=0, columnspan=3, sticky="we", pady=8)
-        self.active = self._check(c, "Active: appear in xDrip+ followers list (default: passive, sends nothing)",
-                                  "active", 5, restart=True)
-        ttk.Label(c, text="Name shown in xDrip+ when active").grid(row=6, column=0, sticky="w")
+        # xDrip Cloud Sync
+        xf = self.xdrip_frame = ttk.LabelFrame(c, text="xDrip Cloud Sync", padding=8)
+        xf.grid(row=1, column=0, columnspan=3, sticky="we")
+        ttk.Label(xf, wraplength=460, justify="left", text=(
+            "On your master phone: xDrip › Settings › xDrip Sync Settings, tick \"Use xDrip Cloud\". "
+            "Then paste the Handset Group Security Sync Key below, or the text from scanning "
+            "Settings › Show Settings QR codes › xDrip security key settings only (starts with xdpref:), "
+            "or load a screenshot of that QR code. The key is kept in Windows Credential Manager.")
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+        self.key_var = tk.StringVar()
+        ttk.Entry(xf, textvariable=self.key_var, show="•", width=40).grid(row=1, column=0, sticky="we")
+        ttk.Button(xf, text="Save key", command=self.save_key).grid(row=1, column=1, padx=4)
+        ttk.Button(xf, text="QR screenshot…", command=self.load_qr).grid(row=1, column=2)
+        self.key_status = ttk.Label(xf, text="")
+        self.key_status.grid(row=2, column=0, sticky="w", pady=4)
+        ttk.Button(xf, text="Remove key", command=self.remove_key).grid(row=2, column=1, columnspan=2, sticky="e")
+        self.active = self._check(xf, "Active: appear in xDrip followers list (default: passive, sends nothing)",
+                                  "active", 3, restart=True)
+        ttk.Label(xf, text="Name shown in xDrip when active").grid(row=4, column=0, sticky="w")
         self.name_var = tk.StringVar(value=s["rollcall_name"])
-        ttk.Entry(c, textvariable=self.name_var, width=24).grid(row=6, column=1, columnspan=2, sticky="we")
-        ttk.Button(c, text="Apply name", command=self.apply_name).grid(row=7, column=2, sticky="e")
+        ttk.Entry(xf, textvariable=self.name_var, width=24).grid(row=4, column=1, sticky="we")
+        ttk.Button(xf, text="Apply name", command=self.apply_name).grid(row=4, column=2, sticky="e")
+
+        # Nightscout
+        nf = self.ns_frame = ttk.LabelFrame(c, text="Nightscout", padding=8)
+        nf.grid(row=1, column=0, columnspan=3, sticky="we")
+        ttk.Label(nf, wraplength=460, justify="left", text=(
+            "Your Nightscout address, plus an access token. To make one: open your Nightscout site › "
+            "Admin Tools › add a subject with the role \"readable\" and copy its token. Your API secret works "
+            "too, but a read-only token is safer. Leave the token empty if your site can be read without one. "
+            "Readings are checked every minute; insulin and carbs every 5 minutes.")
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+        ttk.Label(nf, text="Address").grid(row=1, column=0, sticky="w")
+        self.ns_url_var = tk.StringVar(value=s["nightscout_url"])
+        ttk.Entry(nf, textvariable=self.ns_url_var, width=40).grid(row=2, column=0, sticky="we")
+        ttk.Button(nf, text="Apply address", command=self.apply_ns_url).grid(row=2, column=1, columnspan=2, padx=4, sticky="e")
+        ttk.Label(nf, text="Access token or API secret").grid(row=3, column=0, sticky="w", pady=(6, 0))
+        self.ns_secret_var = tk.StringVar()
+        ttk.Entry(nf, textvariable=self.ns_secret_var, show="•", width=40).grid(row=4, column=0, sticky="we")
+        ttk.Button(nf, text="Save", command=self.save_ns_secret).grid(row=4, column=1, padx=4)
+        ttk.Button(nf, text="Remove", command=self.remove_ns_secret).grid(row=4, column=2)
+        self.ns_status = ttk.Label(nf, text="")
+        self.ns_status.grid(row=5, column=0, columnspan=3, sticky="w", pady=4)
+        self._show_source()
 
         ttk.Separator(c).grid(row=8, column=0, columnspan=3, sticky="we", pady=8)
         ttk.Label(c, text="Data folder (latest.json, history.json for 48 h, collector.log)").grid(row=9, column=0, columnspan=3, sticky="w")
@@ -704,8 +790,16 @@ class SettingsWindow:
         self._spin(d, "Widget text size", "widget_font_size", 2, 8, 40, 1, rebuild_widget=True)
         self._spin(d, "Widget opacity (0.3–1)", "widget_opacity", 3, 0.3, 1.0, 0.05, rebuild_widget=True)
         ttk.Separator(d).grid(row=4, column=0, columnspan=4, sticky="we", pady=8)
-        self._spin(d, "Low below (mmol/L)", "low_mmol", 5, 2.0, 15.0, 0.1)
-        self._spin(d, "High above (mmol/L)", "high_mmol", 6, 5.0, 30.0, 0.1)
+        unitrow = ttk.Frame(d)
+        unitrow.grid(row=5, column=0, columnspan=4, sticky="w")
+        ttk.Label(unitrow, text="Glucose units:").pack(side="left", padx=(0, 8))
+        self.units_var = tk.StringVar(value=s["units"])
+        for val, text in (("mmol", "mmol/L"), ("mgdl", "mg/dL")):
+            ttk.Radiobutton(unitrow, text=text, value=val, variable=self.units_var,
+                            command=self.change_units).pack(side="left", padx=4)
+        self.limit_vars = {}
+        self._limit(d, "Low below", "low_mmol", 6, 2.0, 15.0, row_offset=0)
+        self._limit(d, "High above", "high_mmol", 6, 5.0, 30.0, row_offset=1)
         ttk.Separator(d).grid(row=7, column=0, columnspan=4, sticky="we", pady=8)
         self._check(d, "Same colour for arrow (combine value and arrow colours)", "arrow_same_as_value", 8,
                     after=lambda v: self._arrow_state())
@@ -742,7 +836,7 @@ class SettingsWindow:
                    command=lambda: app.set_view({"span_hours": 48.0, "offset_ms": 0})).grid(row=7, column=0, sticky="w", pady=8)
         ttk.Label(g, text="On the graph: mouse wheel zooms (remembered), Shift + wheel moves back and forward in time, "
                           "middle click shows all 48 hours.", wraplength=460, foreground="#555").grid(row=8, column=0, columnspan=3, sticky="w")
-        ttk.Label(top, text="%s %s · Not a medical device: rely on xDrip+ for alarms." % (APP_NAME, VERSION),
+        ttk.Label(top, text="%s %s · Not a medical device: rely on xDrip for alarms." % (APP_NAME, VERSION),
                   foreground="#777").pack(pady=(0, 8))
         self._key_status()
 
@@ -804,6 +898,78 @@ class SettingsWindow:
         btn.grid(row=row, column=column, padx=4, pady=2)
         return btn
 
+    def _limit(self, parent, text, key, row, lo_mmol, hi_mmol, row_offset=0):
+        """A limit shown and edited in the chosen units (stored in mmol/L)."""
+        lab = self.ttk.Label(parent, text="")
+        lab.grid(row=row + row_offset, column=0, sticky="w")
+        var = self.tk.StringVar()
+        sp = self.ttk.Spinbox(parent, textvariable=var, width=8)
+        sp.grid(row=row + row_offset, column=1, sticky="w")
+
+        def load():
+            mg = self.app.settings["units"] == "mgdl"
+            k = col.MGDL_PER_MMOL if mg else 1.0
+            lab.configure(text="%s (%s)" % (text, "mg/dL" if mg else "mmol/L"))
+            sp.configure(from_=round(lo_mmol * k), to=round(hi_mmol * k), increment=1 if mg else 0.1)
+            var.set(graph.fmt_glucose(float(self.app.settings[key]), self.app.settings["units"]))
+
+        def changed(*_):
+            try:
+                v = float(var.get())
+            except ValueError:
+                return
+            k = col.MGDL_PER_MMOL if self.app.settings["units"] == "mgdl" else 1.0
+            mmol = round(max(lo_mmol, min(hi_mmol, v / k)), 2)
+            self._set(key, mmol)
+        sp.configure(command=changed)
+        sp.bind("<FocusOut>", changed)
+        sp.bind("<Return>", changed)
+        self.limit_vars[key] = load
+        load()
+
+    def change_units(self):
+        self._set("units", self.units_var.get())
+        for load in self.limit_vars.values():
+            load()
+
+    def _show_source(self):
+        if self.app.settings["data_source"] == "nightscout":
+            self.xdrip_frame.grid_remove()
+            self.ns_frame.grid()
+        else:
+            self.ns_frame.grid_remove()
+            self.xdrip_frame.grid()
+        self._key_status()
+
+    def change_source(self):
+        self._set("data_source", self.src_var.get())
+        self._show_source()
+        self.app.collector.restart()
+
+    def apply_ns_url(self):
+        self._set("nightscout_url", self.ns_url_var.get().strip())
+        self.app.collector.restart()
+        self._key_status()
+
+    def save_ns_secret(self):
+        from tkinter import messagebox
+        v = self.ns_secret_var.get().strip()
+        self.ns_secret_var.set("")
+        if not v:
+            return
+        try:
+            set_ns_secret(v)
+        except Exception as e:
+            messagebox.showerror(APP_NAME, "Could not save to Credential Manager: %s" % e, parent=self.top)
+            return
+        self.app.collector.restart()
+        self._key_status()
+
+    def remove_ns_secret(self):
+        clear_ns_secret()
+        self.app.collector.restart()
+        self._key_status()
+
     def _arrow_state(self):
         state = "disabled" if self.app.settings["arrow_same_as_value"] else "normal"
         for b in getattr(self, "arrow_buttons", []):
@@ -827,7 +993,11 @@ class SettingsWindow:
             self.app.widget = None
 
     def _key_status(self):
+        if not hasattr(self, "status"):
+            return
         self.key_status.configure(text="A key is saved" if get_key() else "No key saved yet")
+        self.ns_status.configure(text="A token / API secret is saved" if get_ns_secret()
+                                 else "No token saved (fine if your site is readable without one)")
         self.status.configure(text=self.app.status_text())
 
     def _use_text(self, text):
@@ -845,7 +1015,7 @@ class SettingsWindow:
         except Exception as e:
             messagebox.showerror(APP_NAME, "Could not save to Credential Manager: %s" % e, parent=self.top)
             return
-        warn = "\n\nWarning: xDrip+ keys are usually longer than 16 characters." if len(key) <= 16 else ""
+        warn = "\n\nWarning: xDrip keys are usually longer than 16 characters." if len(key) <= 16 else ""
         messagebox.showinfo(APP_NAME, "Sync key saved.%s" % warn, parent=self.top)
         self.app.collector.restart()
         self._key_status()
@@ -857,7 +1027,7 @@ class SettingsWindow:
 
     def load_qr(self):
         from tkinter import filedialog, messagebox
-        path = filedialog.askopenfilename(parent=self.top, title="Screenshot of the xDrip+ QR code",
+        path = filedialog.askopenfilename(parent=self.top, title="Screenshot of the xDrip QR code",
                                           filetypes=[("Images", "*.png *.jpg *.jpeg *.bmp *.webp"), ("All", "*.*")])
         if not path:
             return
@@ -870,7 +1040,7 @@ class SettingsWindow:
             messagebox.showerror(APP_NAME, "Could not read the image: %s" % e, parent=self.top)
             return
         if not text:
-            messagebox.showerror(APP_NAME, "No xDrip+ settings QR code found in that image.", parent=self.top)
+            messagebox.showerror(APP_NAME, "No xDrip settings QR code found in that image.", parent=self.top)
             return
         self._use_text(text)
         messagebox.showinfo(APP_NAME, "Remember to delete the screenshot - it contains your key.", parent=self.top)
