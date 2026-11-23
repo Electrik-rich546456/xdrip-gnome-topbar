@@ -111,6 +111,8 @@ dconf load /org/gnome/shell/extensions/xdrip-topbar/ < ~/.local/share/xdrip-topb
 |---|---|
 | Mouse wheel | Zooms between 1 and 48 hours. The zoom level is remembered. |
 | Shift + wheel, or scrolling sideways | Moves back and forward through the 48 hours. |
+| Click and drag left or right | Moves back and forward through the 48 hours. |
+| Click a reading, insulin, carbs or finger-stick | Shows its exact time and value: in a small popup next to it, or in the line at the bottom. Choose which in **Settings › History › Details of a clicked item**. |
 | Middle click | Shows all 48 hours again. |
 | ◢ corner (dropdown) | Drag to resize. The size is remembered. |
 
