@@ -1,6 +1,6 @@
 # xDrip+ Tray for Windows
 
-[![Downloads](https://img.shields.io/github/downloads/Electrik-rich546456/xdrip-gnome-topbar/total?label=downloads)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) [![Latest Windows release](https://img.shields.io/github/v/release/Electrik-rich546456/xdrip-gnome-topbar?filter=windows-*&label=windows)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases/latest) [![Licence: GPL-3.0](https://img.shields.io/github/license/Electrik-rich546456/xdrip-gnome-topbar)](LICENSE)
+[![Windows downloads](https://img.shields.io/github/downloads/Electrik-rich546456/xdrip-gnome-topbar/xDripTray.exe?displayAssetName=false&label=Windows%20downloads)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases?q=windows&expanded=true) [![Latest Windows release](https://img.shields.io/github/v/release/Electrik-rich546456/xdrip-gnome-topbar?filter=windows-*&label=windows)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases/latest) [![Licence: GPL-3.0](https://img.shields.io/github/license/Electrik-rich546456/xdrip-gnome-topbar)](LICENSE)
 
 > 🐧 **On Ubuntu / Linux?** Use **[xDrip+ Top Bar for Ubuntu](https://github.com/Electrik-rich546456/xdrip-gnome-topbar)** instead. It's a GNOME top-bar extension with the same graph.
 
@@ -43,7 +43,7 @@ You don't need Python or anything else installed.
 
 ## 1. Download
 
-1. Go to the [Releases page](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) and open the newest **xDrip+ Tray for Windows** release.
+1. Go to the [Windows releases](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases?q=windows&expanded=true) and open the newest **xDrip+ Tray for Windows** release.
 2. Download **`xDripTray.exe`**.
 3. Put it somewhere permanent, for example a new folder `C:\Users\<you>\Apps\xDripTray\`. It's a single file, so there's no installer.
 

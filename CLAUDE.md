@@ -26,7 +26,8 @@
 - `windows/README.md` only points to the branch README. Link to `blob/windows/README.md`, not to `windows/README.md`.
 
 ## Each release
-- Increase `"version"` in `metadata.json`.
+- Increase `"version"` in `metadata.json`. On `main`, `.github/workflows/gnome-release.yml` then publishes the GitHub Release `gnome-v<version>` with `xdrip-topbar-gnome.zip` (never `--latest`, so the newest Windows release stays "Latest"). An existing release is never replaced, because that would reset its download count.
+- Download badges count one file each: `xdrip-topbar-gnome.zip` on `main` and `xDripTray.exe` on `windows`. Keep those file names.
 - Run `python3 collector/xdrip_gnome_collector.py --selftest`.
 - Run `glib-compile-schemas --strict --dry-run schemas`.
 
