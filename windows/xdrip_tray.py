@@ -35,7 +35,7 @@ import xdrip_gnome_collector as col      # noqa: E402  (shared with the GNOME ex
 import graph                              # noqa: E402
 
 APP_NAME = "xDrip Tray"
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 KEYRING_SERVICE = "xdrip-topbar"
 KEYRING_USER = "sync-key"
 KEYRING_NS_USER = "nightscout-secret"      # Nightscout access token or API secret (added in 1.1.0)
@@ -800,21 +800,21 @@ class SettingsWindow:
         self.limit_vars = {}
         self._limit(d, "Low below", "low_mmol", 6, 2.0, 15.0, row_offset=0)
         self._limit(d, "High above", "high_mmol", 6, 5.0, 30.0, row_offset=1)
-        ttk.Separator(d).grid(row=7, column=0, columnspan=4, sticky="we", pady=8)
-        self._check(d, "Same colour for arrow (combine value and arrow colours)", "arrow_same_as_value", 8,
+        ttk.Separator(d).grid(row=8, column=0, columnspan=4, sticky="we", pady=8)
+        self._check(d, "Same colour for arrow (combine value and arrow colours)", "arrow_same_as_value", 9,
                     after=lambda v: self._arrow_state())
-        ttk.Label(d, text="Value").grid(row=9, column=1)
-        ttk.Label(d, text="Arrow").grid(row=9, column=2)
+        ttk.Label(d, text="Value").grid(row=10, column=1)
+        ttk.Label(d, text="Arrow").grid(row=10, column=2)
         self.arrow_buttons = []
         for i, (rid, title) in enumerate((("low", "Low"), ("in", "In range"), ("high", "High"))):
-            ttk.Label(d, text=title).grid(row=10 + i, column=0, sticky="w")
-            self._color(d, "value_color_" + rid, 10 + i, 1)
-            self.arrow_buttons.append(self._color(d, "arrow_color_" + rid, 10 + i, 2))
+            ttk.Label(d, text=title).grid(row=11 + i, column=0, sticky="w")
+            self._color(d, "value_color_" + rid, 11 + i, 1)
+            self.arrow_buttons.append(self._color(d, "arrow_color_" + rid, 11 + i, 2))
         self._arrow_state()
-        ttk.Separator(d).grid(row=13, column=0, columnspan=4, sticky="we", pady=8)
-        self._spin(d, "Stale after (minutes)", "stale_minutes", 14, 5, 120, 1)
-        ttk.Label(d, text="Stale colour").grid(row=15, column=0, sticky="w")
-        self._color(d, "stale_color", 15, 1)
+        ttk.Separator(d).grid(row=14, column=0, columnspan=4, sticky="we", pady=8)
+        self._spin(d, "Stale after (minutes)", "stale_minutes", 15, 5, 120, 1)
+        ttk.Label(d, text="Stale colour").grid(row=16, column=0, sticky="w")
+        self._color(d, "stale_color", 16, 1)
 
         # ---------------- graph
         g = ttk.Frame(nb, padding=10)
@@ -1131,7 +1131,8 @@ class DemoCollector:
             v += ((6 + meal) - v) * 0.15
             if now - 30 * 3600000 < t < now - 29.2 * 3600000:
                 continue                                         # a gap, like a phone out of range
-            mg = max(2.6, v - (2.6 if 3 < h < 4.3 else 0)) * col.MGDL_PER_MMOL
+            dip = 2.7 * math.exp(-((h - 3.6) ** 2) / 0.35)            # an overnight low
+            mg = max(2.6, v - dip) * col.MGDL_PER_MMOL
             readings.append({"t": t, "mgdl": round(mg, 1), "mmol": round(mg / col.MGDL_PER_MMOL, 2),
                              "slope": 0.3, "trend": "Flat"})
         readings[-1]["trend"] = "FortyFiveUp"
@@ -1259,6 +1260,7 @@ def screenshots(out_dir):
         settings["units"] = "mmol"
         app.refresh()
         app.graph_win.close()
+        app.widget.top.geometry("+700+600")                      # out of the way of the settings window
         app.open_settings()
         app.settings_win.top.geometry("+60+60")
     step(to_mmol, 1500)
