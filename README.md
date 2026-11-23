@@ -35,7 +35,7 @@ gnome-extensions enable xdrip-topbar@local
 gnome-extensions prefs  xdrip-topbar@local
 ```
 
-In the settings, choose your data source and enter your sync key (see below) or your Nightscout details.
+In the settings, choose your data source and enter your sync key (see below) or your Nightscout details. The settings' **About** page shows which version you have, with links to new releases and to report a problem.
 
 **To update later:** download the newest zip and run `./install.sh` again, or `cd xdrip-gnome-topbar && git pull && ./install.sh`. Then restart GNOME Shell as above. Your settings, sync key and data are kept.
 
