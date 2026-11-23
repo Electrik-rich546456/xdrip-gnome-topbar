@@ -130,10 +130,21 @@ jobs:
 
           **Check the download:** this .exe was built by GitHub Actions from commit ${{ github.sha }} of this repository. GitHub has signed a record of that build, and you can verify it with \`gh attestation verify xDripTray.exe --repo ${{ github.repository }}\`, or compare the SHA-256 with \`xDripTray.exe.sha256\`. ${SIGNED_NOTE}
 
+          ### Screenshots
+
+          ![The 48-hour graph](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/graph.png)
+
+          | Floating widget | Tray icon | Settings |
+          |---|---|---|
+          | ![Widget](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/widget.png) | ![Tray icon](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/tray-icon.png) | ![Settings](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/settings-collector.png) |
+
+          More in [the Windows guide](https://github.com/${{ github.repository }}/blob/windows/windows/README.md#screenshots). Screenshots are taken automatically with made-up readings.
+
           Not a medical device: rely on xDrip+ for alarms.
           NOTES
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" dist/xDripTray.exe dist/xDripTray.exe.sha256 --clobber
+            gh release edit "$tag" --notes-file notes.md
           else
             gh release create "$tag" dist/xDripTray.exe dist/xDripTray.exe.sha256 \
               --target "${{ github.sha }}" --title "xDrip+ Tray for Windows ${version}" --notes-file notes.md

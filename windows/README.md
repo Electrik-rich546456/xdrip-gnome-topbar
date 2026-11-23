@@ -14,6 +14,29 @@ You don't need Python or anything else installed.
 
 > **Not a medical device.** This is a convenience display. Don't base treatment decisions on it, and rely on xDrip+ itself for alarms. Readings can be late, missing or wrong.
 
+## Screenshots
+
+*Taken automatically on a Windows PC with made-up readings. They're refreshed whenever the app changes.*
+
+**The graph:** 48 hours, with insulin (blue ▼), carbs (orange ●) and a finger-stick (red dot)
+![48-hour graph](../docs/screenshots/windows/graph.png)
+
+| Zoomed in to 8 hours | In mg/dL |
+|---|---|
+| ![Graph zoomed in](../docs/screenshots/windows/graph-zoomed.png) | ![Graph in mg/dL](../docs/screenshots/windows/graph-mgdl.png) |
+
+| Floating widget | Tray icon (enlarged) |
+|---|---|
+| ![Floating widget](../docs/screenshots/windows/widget.png) ![Floating widget in mg/dL](../docs/screenshots/windows/widget-mgdl.png) | ![Tray icon](../docs/screenshots/windows/tray-icon.png) |
+
+| Settings: xDrip+ Cloud Sync | Settings: Nightscout |
+|---|---|
+| ![Collector settings](../docs/screenshots/windows/settings-collector.png) | ![Nightscout settings](../docs/screenshots/windows/settings-nightscout.png) |
+
+| Settings: Display | Settings: Graph |
+|---|---|
+| ![Display settings](../docs/screenshots/windows/settings-display.png) | ![Graph settings](../docs/screenshots/windows/settings-graph.png) |
+
 ## 1. Download
 
 1. Go to the [Releases page](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) and open the newest **xDrip+ Tray for Windows** release.
