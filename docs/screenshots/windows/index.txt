@@ -1,0 +1,11 @@
+tray-icon.png
+tray-icon-mgdl.png
+widget.png
+graph.png
+graph-zoomed.png
+graph-mgdl.png
+widget-mgdl.png
+settings-collector.png
+settings-nightscout.png
+settings-display.png
+settings-graph.png
