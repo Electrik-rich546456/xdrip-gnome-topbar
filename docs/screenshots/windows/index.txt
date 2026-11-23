@@ -11,3 +11,4 @@ settings-collector.png
 settings-nightscout.png
 settings-display.png
 settings-graph.png
+settings-about.png
