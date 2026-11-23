@@ -34,6 +34,12 @@ There's also a **Windows version**. It shows the reading in the taskbar tray and
 - **Instructions:** the [Windows guide](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/windows/README.md)
 - **Source:** the [`windows` branch](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/tree/windows)
 
+| The graph | Widget and tray icon | Settings |
+|---|---|---|
+| ![Windows graph](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/graph.png) | ![Floating widget](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/widget.png)<br>![Tray icon](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/tray-icon.png) | ![Windows settings](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/settings-collector.png) |
+
+More screenshots are in the [Windows guide](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/windows/README.md#screenshots).
+
 Windows releases are built only by GitHub Actions from this repository, and each one comes with a GitHub build attestation. See the [code signing policy](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/CODE_SIGNING_POLICY.md).
 
 The Windows version hasn't been tested on a real Windows PC yet, so feedback and bug reports are very welcome. Please open an [issue](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/issues).
