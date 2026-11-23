@@ -7,6 +7,7 @@ mouse-wheel zoom and moving back in time.
 
 import datetime
 import math
+import time
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -138,6 +139,30 @@ def pan_view(view, fraction):
     return clamp_view(view["span_hours"], view["offset_ms"] + fraction * view["span_hours"] * 3600000)
 
 
+def pan_view_pixels(view, w, h, dx_px):
+    """Drag to scroll: dx_px pixels to the right shows earlier readings."""
+    pw = _layout(w, h)[5]
+    return clamp_view(view["span_hours"], view["offset_ms"] + dx_px / pw * view["span_hours"] * 3600000)
+
+
+def fmt_when(ms, now_ms=None):
+    """'3:42 PM' for today, 'Sun 3:42 PM' for other days."""
+    d = datetime.datetime.fromtimestamp(ms / 1000)
+    n = datetime.datetime.fromtimestamp((now_ms or time.time() * 1000) / 1000)
+    t = fmt_time12(ms)
+    return t if d.date() == n.date() else "%s %s" % (d.strftime("%a"), t)
+
+
+def hit_test(targets, x, y):
+    """The item under (x, y) in a graph drawn by draw_graph(out=...), or None."""
+    best, best_d = None, float("inf")
+    for t in targets or []:
+        d = math.hypot(t["x"] - x, t["y"] - y) - (0 if t["kind"] == "reading" else 6)   # markers win
+        if d < (14 if t["kind"] == "reading" else 16) and d < best_d:
+            best, best_d = t, d
+    return best
+
+
 def _fmt_span(hours):
     return "%d h" % round(hours) if hours >= 1.95 else "%d min" % round(hours * 60)
 
@@ -210,8 +235,9 @@ def _units(n):
 
 
 # ---------------------------------------------------------------- the graph
-def draw_graph(w, h, history, opts, now_ms, view=None):
-    """Returns a w x h RGB image.  opts: dict made by the app from its settings."""
+def draw_graph(w, h, history, opts, now_ms, view=None, out=None):
+    """Returns a w x h RGB image.  opts: dict made by the app from its settings.
+    out (optional dict) receives "targets": the clickable items, in image pixels."""
     v0 = clamp_view((view or {}).get("span_hours", opts.get("span_hours", HISTORY_HOURS)),
                     (view or {}).get("offset_ms", 0))
     span = v0["span_hours"] * 3600000
@@ -293,6 +319,12 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
     runs = [[(X(r["t"]), Y(mmol_of(r)), mmol_of(r)) for r in run]
             for run in _runs(readings, opts.get("gap_ms", 15 * 60000))]
     show_line = opts.get("line", True)
+    targets = []
+    when = lambda ms: fmt_when(ms, now_ms)
+    for r in visible:
+        v = mmol_of(r)
+        targets.append({"kind": "reading", "key": "r%d" % r["t"], "x": X(r["t"]) / SS, "y": Y(v) / SS,
+                        "label": "%s %s %s at %s" % (fmt_glucose(v, units), unit_label(units), arrow_for(r), when(r["t"]))})
     if show_line:
         lw = max(1, int(round(S(opts.get("line_width", 2)))))
         mask = Image.new("L", (W, H), 0)
@@ -330,6 +362,8 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
         dr.ellipse([x - r_, y - r_, x + r_, y + r_], fill=(255, 255, 255, 255))
         r_ = S(rad + 1.5)
         dr.ellipse([x - r_, y - r_, x + r_, y + r_], fill=hex_rgb(FINGER_COLOR))
+        targets.append({"kind": "finger", "key": "f%d" % b["t"], "x": x / SS, "y": y / SS,
+                        "label": "Finger-stick %s %s at %s" % (fmt_glucose(v, units), unit_label(units), when(b["t"]))})
 
     # treatments on the glucose line, amount written next to them (like xDrip+)
     clamp_y = lambda y: max(top + S(2), min(bottom - S(2), y))
@@ -343,12 +377,16 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
             dr.polygon([(x - s, ty - 2 * s), (x + s, ty - 2 * s), (x, ty)], fill=hex_rgb(INSULIN_COLOR))
             dr.text((x, ty - 2 * s - S(3)), "%sU" % _units(t["insulin"]), font=f_small,
                     fill=hex_rgb(INSULIN_COLOR), anchor="mb")
+            targets.append({"kind": "insulin", "key": "i%s" % t.get("id", t["t"]), "x": x / SS, "y": (ty - s) / SS,
+                            "label": "Insulin %sU at %s" % (_units(t["insulin"]), when(t["t"]))})
         if t.get("carbs", 0) > 0:
             cy = min(bottom - S(5) - S(fs), y + S(10))
             r_ = S(4.5)
             dr.ellipse([x - r_, cy - r_, x + r_, cy + r_], fill=hex_rgb(CARBS_COLOR))
             dr.text((x, cy + r_ + S(2)), "%sg" % _units(t["carbs"]), font=f_small,
                     fill=hex_rgb(CARBS_COLOR), anchor="mt")
+            targets.append({"kind": "carbs", "key": "c%s" % t.get("id", t["t"]), "x": x / SS, "y": cy / SS,
+                            "label": "Carbs %sg at %s" % (_units(t["carbs"]), when(t["t"]))})
 
     # header
     head_y = S(fs * 1.0)
@@ -369,4 +407,23 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
     dr.text((S(w - pad_r), head_y), "%s%s · %s" % (_fmt_span(v0["span_hours"]), where, unit_label(units)),
             font=f_main, fill=(255, 255, 255, 115), anchor="rm")
 
+    # the item that was clicked: a ring around it, and its details in a small popup next to it
+    sel = next((t for t in targets if t["key"] == opts.get("selected")), None)
+    if sel:
+        sx, sy = S(sel["x"]), S(sel["y"])
+        dr.ellipse([sx - S(7), sy - S(7), sx + S(7), sy + S(7)], outline=(255, 255, 255, 230), width=S(2))
+        if opts.get("event_popup", True):
+            tw = dr.textlength(sel["label"], font=f_main)
+            bw, bh = tw + S(14), S(fs) + S(12)
+            bx, by = sx + S(12), sy - bh - S(10)
+            if bx + bw > W - S(2):
+                bx = sx - S(12) - bw
+            if by < S(2):
+                by = sy + S(12)
+            bx = max(S(2), bx)
+            dr.rectangle([bx, by, bx + bw, by + bh], fill=(13, 13, 15, 235), outline=(255, 255, 255, 90), width=SS)
+            dr.text((bx + S(7), by + bh / 2), sel["label"], font=f_main, fill=(255, 255, 255, 242), anchor="lm")
+    if out is not None:
+        out["targets"] = targets
+        out["selected"] = sel
     return img.resize((w, h), Image.LANCZOS)

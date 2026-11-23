@@ -29,6 +29,9 @@ You don't need Python or anything else installed.
 |---|---|
 | ![Graph zoomed in](docs/screenshots/windows/graph-zoomed.png) | ![Graph in mg/dL](docs/screenshots/windows/graph-mgdl.png) |
 
+**Click an item** to see its exact time:
+![Clicked insulin with its time](docs/screenshots/windows/graph-details.png)
+
 | Floating widget | Tray icon (enlarged) |
 |---|---|
 | ![Floating widget](docs/screenshots/windows/widget.png) ![Floating widget in mg/dL](docs/screenshots/windows/widget-mgdl.png) | ![Tray icon](docs/screenshots/windows/tray-icon.png) |
@@ -102,7 +105,7 @@ Within a few minutes, the tray icon and widget show your reading.
 |---|---|
 | Tray icon | Hover for the reading, arrow and minutes ago. **Left click** for the graph. **Right click** for the menu: graph, widget on/off, settings, data folder, quit. |
 | Widget | **Drag** to move it, and its position is remembered. **Click** for the graph. **Right click** for the menu. |
-| Graph | **Mouse wheel** zooms between 1 and 48 hours, and the zoom is remembered. **Shift + wheel** moves back and forward in time. **Middle click** shows all 48 hours again. The window remembers its size and position. |
+| Graph | **Mouse wheel** zooms between 1 and 48 hours, and the zoom is remembered. **Click and drag** left or right, or use **Shift + wheel**, to move back and forward in time. **Click** a reading, insulin, carbs or finger-stick to see its exact time and value, either in a small popup next to it or in the line at the bottom (Settings › Graph). **Middle click** shows all 48 hours again. The window remembers its size and position. |
 
 To keep the tray icon visible all the time, go to **Windows Settings › Personalization › Taskbar › Other system tray icons** and turn on **xDripTray**. On Windows 10 you can drag the icon out of the `^` overflow area instead.
 
@@ -128,6 +131,7 @@ The Settings window is available from the tray or widget menu.
 
 **Graph tab**
 - Line on or off, smooth or straight, line width, and line colour (by range or one colour).
+- Where the details of a clicked item appear: a small popup next to it, or the line at the bottom.
 - A dot for every reading.
 - Where the line breaks at a gap.
 - Reset zoom.

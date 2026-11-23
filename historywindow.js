@@ -8,7 +8,8 @@ import GLib from 'gi://GLib';
 
 import Gdk from 'gi://Gdk?version=4.0';
 
-import {SCHEMA_ID, dataDir, graphOptions, readJsonAsync, drawGraph, zoomView, panView} from './common.js';
+import {SCHEMA_ID, dataDir, graphOptions, readJsonAsync, drawGraph, zoomView, panView, panViewPixels, hitTest}
+    from './common.js';
 
 const HERE = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 const source = Gio.SettingsSchemaSource.new_from_directory(
@@ -20,6 +21,9 @@ let saveId = 0;
 let zoomSaveId = 0;
 let view = {spanHours: settings.get_double('graph-hours'), offsetMs: 0};
 let mouseX = 0;
+let targets = [];
+let selected = null;
+let selectedLabel = '';
 
 const app = new Gtk.Application({
     application_id: 'org.local.XdripTopbar.History',
@@ -44,12 +48,22 @@ app.connect('activate', () => {
     const area = new Gtk.DrawingArea({hexpand: true, vexpand: true});
     area.set_draw_func((a, cr, w, h) => {
         try {
-            drawGraph(cr, w, h, history, graphOptions(settings), Date.now(), view);
+            targets = drawGraph(cr, w, h, history, {...graphOptions(settings), selected}, Date.now(), view).targets;
         } catch (e) {
             logError(e);
         }
     });
-    win.set_child(area);
+    // bottom line: details of the clicked item, when "show in the status line" is chosen
+    const eventLabel = new Gtk.Label({xalign: 0, margin_start: 8, margin_end: 8, margin_top: 3, margin_bottom: 4,
+        css_classes: ['caption-heading'], visible: false});
+    const box = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL});
+    box.append(area);
+    box.append(eventLabel);
+    win.set_child(box);
+    const showEvent = () => {
+        eventLabel.label = selectedLabel;
+        eventLabel.visible = settings.get_string('graph-event-info') === 'status' && !!selectedLabel;
+    };
 
     // mouse wheel: zoom around the pointer (remembered); Shift+wheel or sideways scroll: move in time;
     // middle click: back to the whole 48 hours
@@ -91,6 +105,32 @@ app.connect('activate', () => {
     middle.connect('pressed', () => setView({spanHours: 48, offsetMs: 0}));
     area.add_controller(middle);
 
+    // left button: drag to move through time, or click an item to see its exact time
+    const drag = new Gtk.GestureDrag({button: 1});
+    let dragStart = null;
+    drag.connect('drag-begin', (g, x, y) => {
+        dragStart = {x, y, view, moved: false};
+    });
+    drag.connect('drag-update', (g, dx) => {
+        if (!dragStart)
+            return;
+        if (Math.abs(dx) > 4)
+            dragStart.moved = true;
+        if (dragStart.moved)
+            setView(panViewPixels(dragStart.view, area.get_width(), area.get_height(), dx));
+    });
+    drag.connect('drag-end', () => {
+        if (dragStart && !dragStart.moved) {
+            const hit = hitTest(targets, dragStart.x, dragStart.y);
+            selected = hit?.key ?? null;
+            selectedLabel = hit?.label ?? '';
+            showEvent();
+            area.queue_draw();
+        }
+        dragStart = null;
+    });
+    area.add_controller(drag);
+
     const load = () => readJsonAsync(GLib.build_filenamev([dataDir(settings), 'history.json']), doc => {
         history = doc;
         area.queue_draw();
@@ -116,6 +156,9 @@ app.connect('activate', () => {
         if (key === 'data-dir') {
             watch();
             load();
+        } else if (key === 'graph-event-info') {
+            showEvent();
+            area.queue_draw();
         } else if (key === 'graph-hours') {
             const h = settings.get_double('graph-hours');
             if (Math.abs(h - view.spanHours) > 0.01)

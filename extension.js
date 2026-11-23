@@ -19,7 +19,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {
     arrowFor, mmolOf, rangeOf, dataDir, graphOptions, readJsonAsync, drawGraph, fmtMinutesAgo, fmtTime12,
-    zoomView, panView, fmtGlucose,
+    zoomView, panView, fmtGlucose, panViewPixels, hitTest,
 } from './common.js';
 import {lookupKey, lookupNsSecret} from './secret.js';
 
@@ -188,7 +188,9 @@ class XdripIndicator extends PanelMenu.Button {
         on(['low-mmol', 'high-mmol', 'value-color-low', 'value-color-in', 'value-color-high',
             'arrow-color-low', 'arrow-color-in', 'arrow-color-high', 'arrow-same-as-value',
             'stale-minutes', 'stale-color', 'graph-show-line', 'graph-smooth', 'graph-line-width',
-            'graph-line-color-mode', 'graph-line-color', 'graph-show-dots', 'graph-gap-minutes', 'units'], () => {
+            'graph-line-color-mode', 'graph-line-color', 'graph-show-dots', 'graph-gap-minutes', 'units',
+            'graph-event-info'], () => {
+            this._showEvent();
             this._updateLabels();
             this._area.queue_repaint();
         });
@@ -235,7 +237,9 @@ class XdripIndicator extends PanelMenu.Button {
             const cr = area.get_context();
             const [w, h] = area.get_surface_size();
             try {
-                drawGraph(cr, w, h, this._history, graphOptions(this._settings), Date.now(), this._view);
+                const res = drawGraph(cr, w, h, this._history,
+                    {...graphOptions(this._settings), selected: this._selected}, Date.now(), this._view);
+                this._targets = res.targets;
             } catch (e) {
                 logError(e, 'xdrip-topbar: graph');
             }
@@ -244,15 +248,52 @@ class XdripIndicator extends PanelMenu.Button {
         // mouse wheel: zoom around the pointer (remembered); Shift+wheel or sideways scroll: move in time;
         // middle click: back to the whole 48 hours
         this._area.connect('scroll-event', (a, ev) => this._onScroll(ev));
+        // left button: drag to move through time, or click an item to see its exact time
         this._area.connect('button-press-event', (a, ev) => {
-            if (ev.get_button() !== 2)
+            if (ev.get_button() === 2) {
+                this._setView({spanHours: 48, offsetMs: 0});
+                return Clutter.EVENT_STOP;
+            }
+            if (ev.get_button() !== 1)
                 return Clutter.EVENT_PROPAGATE;
-            this._setView({spanHours: 48, offsetMs: 0});
+            const [x] = ev.get_coords();
+            this._pan = {x, view: this._view, moved: false};
+            this._panGrab = global.stage.grab(this._area);
+            return Clutter.EVENT_STOP;
+        });
+        this._area.connect('motion-event', (a, ev) => {
+            if (!this._pan)
+                return Clutter.EVENT_PROPAGATE;
+            const [x] = ev.get_coords();
+            const dx = x - this._pan.x;
+            if (Math.abs(dx) > 4)
+                this._pan.moved = true;
+            if (this._pan.moved)
+                this._setView(panViewPixels(this._pan.view, this._area.width, this._area.height, dx));
+            return Clutter.EVENT_STOP;
+        });
+        this._area.connect('button-release-event', (a, ev) => {
+            if (!this._pan)
+                return Clutter.EVENT_PROPAGATE;
+            const moved = this._pan.moved;
+            this._pan = null;
+            this._panGrab?.dismiss();
+            this._panGrab = null;
+            if (!moved) {
+                const [sx, sy] = ev.get_coords();
+                const [ax, ay] = this._area.get_transformed_position();
+                this._select(hitTest(this._targets, sx - ax, sy - ay));
+            }
             return Clutter.EVENT_STOP;
         });
         col.add_child(this._area);
 
         const row = new St.BoxLayout({x_expand: true});
+        this._eventLabel = new St.Label({
+            text: '', y_align: Clutter.ActorAlign.CENTER, visible: false,
+            style: 'font-size: 0.85em; font-weight: bold; padding-top: 4px; padding-right: 12px;',
+        });
+        row.add_child(this._eventLabel);
         this._statusLabel = new St.Label({
             text: '', x_expand: true, y_align: Clutter.ActorAlign.CENTER,
             style: 'font-size: 0.85em; color: #aaaaaa; padding-top: 4px;',
@@ -286,6 +327,7 @@ class XdripIndicator extends PanelMenu.Button {
         this._menuOpenId = this.menu.connect('open-state-changed', (m, open) => {
             if (open) {
                 this._view = {spanHours: this._settings.get_double('graph-hours'), offsetMs: 0};
+                this._select(null);
                 this._loadLatest();
                 this._loadHistory();
                 this._updateStatus();
@@ -318,6 +360,20 @@ class XdripIndicator extends PanelMenu.Button {
             view = panView(view, -dx * 0.15);         // scroll left = further back in time
         this._setView(view);
         return Clutter.EVENT_STOP;
+    }
+
+    /** Remember the clicked graph item (or none) and show its details. */
+    _select(target) {
+        this._selected = target?.key ?? null;
+        this._selectedLabel = target?.label ?? '';
+        this._showEvent();
+        this._area.queue_repaint();
+    }
+
+    _showEvent() {
+        const inStatus = this._settings.get_string('graph-event-info') === 'status';
+        this._eventLabel.text = this._selectedLabel ?? '';
+        this._eventLabel.visible = inStatus && !!this._selectedLabel;
     }
 
     _setView(view) {
@@ -362,6 +418,8 @@ class XdripIndicator extends PanelMenu.Button {
             this._grab.dismiss();
             this._grab = null;
         }
+        this._panGrab?.dismiss();
+        this._panGrab = null;
         this._settings.set_int('dropdown-width', this._area.width);
         this._settings.set_int('dropdown-height', this._area.height);
         return Clutter.EVENT_STOP;

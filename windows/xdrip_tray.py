@@ -35,7 +35,7 @@ import xdrip_gnome_collector as col      # noqa: E402  (shared with the GNOME ex
 import graph                              # noqa: E402
 
 APP_NAME = "xDrip+ Tray"
-VERSION = "1.1.3"
+VERSION = "1.2.0"
 KEYRING_SERVICE = "xdrip-topbar"
 KEYRING_USER = "sync-key"
 KEYRING_NS_USER = "nightscout-secret"      # Nightscout access token or API secret (added in 1.1.0)
@@ -73,6 +73,7 @@ DEFAULTS = {
     "graph_show_dots": False,
     "graph_gap_minutes": 15,
     "graph_hours": 48.0,
+    "graph_event_info": "popup",           # details of a clicked graph item: "popup" or "status"
     "units": "mmol",                       # "mmol" or "mgdl" (limits are stored in mmol/L either way)
     "data_source": "xdrip-cloud",          # "xdrip-cloud" or "nightscout"
     "nightscout_url": "",
@@ -124,6 +125,7 @@ class Settings:
                 "line_by_range": self["graph_line_color_mode"] == "range",
                 "line_color": self["graph_line_color"], "dots": bool(self["graph_show_dots"]),
                 "gap_ms": int(self["graph_gap_minutes"]) * 60000, "span_hours": float(self["graph_hours"]),
+                "event_popup": self["graph_event_info"] != "status",
                 "units": self["units"]}
 
 
@@ -669,8 +671,16 @@ class GraphWindow:
             self.top.geometry("760x330")
         self.canvas = tk.Canvas(self.top, bg="#1c1c1f", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
-        self.status = tk.Label(self.top, text="", bg="#1c1c1f", fg="#999999", anchor="w", font=("Segoe UI", 9))
-        self.status.pack(fill="x", padx=6, pady=(0, 3))
+        bottom = tk.Frame(self.top, bg="#1c1c1f")
+        bottom.pack(fill="x", padx=6, pady=(0, 3))
+        self.event = tk.Label(bottom, text="", bg="#1c1c1f", fg="#ffffff", anchor="w", font=("Segoe UI", 9, "bold"))
+        self.event.pack(side="left", padx=(0, 12))
+        self.status = tk.Label(bottom, text="", bg="#1c1c1f", fg="#999999", anchor="w", font=("Segoe UI", 9))
+        self.status.pack(side="left", fill="x")
+        self.targets = []
+        self.selected = None
+        self.selected_label = ""
+        self._drag = None
         self.photo = None
         self._pending = None
         self._geo_save = None
@@ -680,6 +690,10 @@ class GraphWindow:
         self.canvas.bind("<Button-4>", lambda e: self._wheel(e, delta=120))   # Linux (testing)
         self.canvas.bind("<Button-5>", lambda e: self._wheel(e, delta=-120))
         self.canvas.bind("<Button-2>", lambda e: app.set_view({"span_hours": 48.0, "offset_ms": 0}))
+        # left button: drag to move through time, or click an item to see its exact time
+        self.canvas.bind("<ButtonPress-1>", self._press)
+        self.canvas.bind("<B1-Motion>", self._motion)
+        self.canvas.bind("<ButtonRelease-1>", self._release)
         self.top.bind("<Configure>", self._moved)
         self.top.protocol("WM_DELETE_WINDOW", self.close)
 
@@ -691,6 +705,30 @@ class GraphWindow:
         else:
             self.app.set_view(graph.zoom_view(self.app.view, self.canvas.winfo_width(),
                                               self.canvas.winfo_height(), e.x, 1.2 ** steps))
+
+    def _press(self, e):
+        self._drag = {"x": e.x, "y": e.y, "view": self.app.view, "moved": False}
+
+    def _motion(self, e):
+        if not self._drag:
+            return
+        dx = e.x - self._drag["x"]
+        if abs(dx) > 4:
+            if not self._drag["moved"]:
+                self.canvas.configure(cursor="fleur")
+            self._drag["moved"] = True
+        if self._drag["moved"]:
+            self.app.set_view(graph.pan_view_pixels(self._drag["view"], self.canvas.winfo_width(),
+                                                    self.canvas.winfo_height(), dx))
+
+    def _release(self, e):
+        d, self._drag = self._drag, None
+        self.canvas.configure(cursor="")
+        if d and not d["moved"]:
+            hit = graph.hit_test(self.targets, d["x"], d["y"])
+            self.selected = hit["key"] if hit else None
+            self.selected_label = hit["label"] if hit else ""
+            self.redraw()
 
     def _moved(self, e):
         if e.widget is not self.top:
@@ -715,12 +753,17 @@ class GraphWindow:
         if w < 20 or h < 20:
             return
         _, hist, _ = self.app.collector.snapshot()
-        img = graph.draw_graph(w, h, hist, self.app.settings.graph_opts(), time.time() * 1000, self.app.view)
+        out = {}
+        opts = dict(self.app.settings.graph_opts(), selected=self.selected)
+        img = graph.draw_graph(w, h, hist, opts, time.time() * 1000, self.app.view, out=out)
+        self.targets = out.get("targets", [])
+        in_status = self.app.settings["graph_event_info"] == "status"
+        self.event.configure(text=self.selected_label if in_status else "")
         self.photo = ImageTk.PhotoImage(img)
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, image=self.photo, anchor="nw")
         self.status.configure(text=self.app.status_text() +
-                              "    ·  wheel: zoom   Shift+wheel: move in time   middle click: all 48 h")
+                              "    ·  wheel: zoom   drag: move in time   click: details   middle click: all 48 h")
 
     def close(self):
         try:
@@ -865,8 +908,16 @@ class SettingsWindow:
         self._spin(g, "Break the line after a gap of (minutes)", "graph_gap_minutes", 6, 6, 120, 1)
         ttk.Button(g, text="Reset zoom to 48 hours",
                    command=lambda: app.set_view({"span_hours": 48.0, "offset_ms": 0})).grid(row=7, column=0, sticky="w", pady=8)
-        ttk.Label(g, text="On the graph: mouse wheel zooms (remembered), Shift + wheel moves back and forward in time, "
-                          "middle click shows all 48 hours.", wraplength=460, foreground="#555").grid(row=8, column=0, columnspan=3, sticky="w")
+        ttk.Label(g, text="Details of a clicked item").grid(row=8, column=0, sticky="w")
+        info = tk.StringVar(value="Small popup next to it" if s["graph_event_info"] != "status" else "In the line at the bottom")
+        icb = ttk.Combobox(g, textvariable=info, values=["Small popup next to it", "In the line at the bottom"],
+                           state="readonly", width=24)
+        icb.grid(row=8, column=1, columnspan=2, sticky="w")
+        icb.bind("<<ComboboxSelected>>", lambda e: self._set("graph_event_info",
+                                                             "status" if info.get() == "In the line at the bottom" else "popup"))
+        ttk.Label(g, text="On the graph: mouse wheel zooms (remembered); drag, or Shift + wheel, moves back and forward "
+                          "in time; middle click shows all 48 hours; click a reading, insulin, carbs or finger-stick to "
+                          "see its exact time.", wraplength=460, foreground="#555").grid(row=9, column=0, columnspan=3, sticky="w")
         ttk.Label(top, text="%s %s · Not a medical device: rely on xDrip+ for alarms." % (APP_NAME, VERSION),
                   foreground="#777").pack(pady=(0, 8))
         self._key_status()
@@ -1292,6 +1343,20 @@ def screenshots(out_dir):
         app.set_view({"span_hours": 8.0, "offset_ms": 0})
     step(zoom, 1200)
     step(lambda: grab_frame(app.graph_win.top, "graph-zoomed.png"))
+
+    def click_insulin():                                         # what clicking an item shows
+        gw = app.graph_win
+        hit = next((t for t in reversed(gw.targets) if t["kind"] == "insulin"), None) or \
+            next((t for t in reversed(gw.targets) if t["kind"] == "reading"), None)
+        if hit:
+            gw.selected, gw.selected_label = hit["key"], hit["label"]
+            gw.redraw()
+    step(click_insulin, 1200)
+    step(lambda: grab_frame(app.graph_win.top, "graph-details.png"))
+
+    def unselect():
+        app.graph_win.selected, app.graph_win.selected_label = None, ""
+    step(unselect, 200)
 
     def mgdl():
         settings["units"] = "mgdl"

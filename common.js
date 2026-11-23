@@ -80,6 +80,7 @@ export function graphOptions(settings) {
         gapMs: settings.get_int('graph-gap-minutes') * 60000,
         spanHours: settings.get_double('graph-hours'),
         units: settings.get_string('units'),
+        eventPopup: settings.get_string('graph-event-info') !== 'status',
     };
 }
 
@@ -255,6 +256,33 @@ export function panView(view, fraction) {
     return clampView(view.spanHours, view.offsetMs + fraction * view.spanHours * 3600000);
 }
 
+/** Drag-to-scroll: dxPx pixels to the right shows earlier readings. */
+export function panViewPixels(view, w, h, dxPx) {
+    const L = layout(w, h);
+    return clampView(view.spanHours, view.offsetMs + dxPx / L.pw * view.spanHours * 3600000);
+}
+
+/** '3:42 PM' for today, 'Sun 3:42 PM' for other days. */
+export function fmtWhen(ms, nowMs = Date.now()) {
+    const d = GLib.DateTime.new_from_unix_local(Math.floor(ms / 1000));
+    const n = GLib.DateTime.new_from_unix_local(Math.floor(nowMs / 1000));
+    const sameDay = d.get_year() === n.get_year() && d.get_day_of_year() === n.get_day_of_year();
+    return d.format(sameDay ? '%-I:%M %p' : '%a %-I:%M %p');
+}
+
+/** The item under (x, y) in a graph drawn by drawGraph(), or null. */
+export function hitTest(targets, x, y) {
+    let best = null, bestD = Infinity;
+    for (const t of targets ?? []) {
+        const d = Math.hypot(t.x - x, t.y - y) - (t.kind === 'reading' ? 0 : 6);   // markers win over the line
+        if (d < (t.kind === 'reading' ? 14 : 16) && d < bestD) {
+            best = t;
+            bestD = d;
+        }
+    }
+    return best;
+}
+
 function fmtSpan(hours) {
     return hours >= 1.95 ? `${Math.round(hours)} h` : `${Math.round(hours * 60)} min`;
 }
@@ -360,6 +388,14 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     const pxPerReading = pw / (span / 300000);                  // readings are ~5 min apart
     const rad = Math.max(1.3, Math.min(3.5, pxPerReading * 0.35));
     const showLine = opts.line ?? true;
+    const targets = [];
+    const units = opts.units;
+    const when = ms => fmtWhen(ms, nowMs);
+    for (const r of visible) {
+        const v = mmolOf(r);
+        targets.push({kind: 'reading', key: `r${r.t}`, x: X(r.t), y: Y(v),
+            label: `${fmtGlucose(v, units)} ${unitLabel(units)} ${arrowFor(r)} at ${when(r.t)}`});
+    }
     const runs = runsOf(readings, opts.gapMs ?? 15 * 60000)
         .map(run => run.map(r => ({x: X(r.t), y: Y(mmolOf(r)), v: mmolOf(r)})));
     if (showLine) {
@@ -412,6 +448,8 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
         setColor(cr, FINGER_COLOR);
         cr.arc(X(b.t), Y(v), rad + 1.5, 0, 2 * Math.PI);
         cr.fill();
+        targets.push({kind: 'finger', key: `f${b.t}`, x: X(b.t), y: Y(v),
+            label: `Finger-stick ${fmtGlucose(v, units)} ${unitLabel(units)} at ${when(b.t)}`});
     }
 
     // treatments: like xDrip+, placed on the glucose line with the amount written next to it
@@ -430,6 +468,8 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
             cr.closePath();
             cr.fill();
             text(cr, `${fmtUnits(t.insulin)}U`, x, ty - 2 * s - 3, 'center');
+            targets.push({kind: 'insulin', key: `i${t.id ?? t.t}`, x, y: ty - s,
+                label: `Insulin ${fmtUnits(t.insulin)}U at ${when(t.t)}`});
         }
         if (t.carbs > 0) {
             const cy = Math.min(padT + ph - 5 - fs, y + 10);
@@ -437,6 +477,8 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
             cr.arc(x, cy, 4.5, 0, 2 * Math.PI);
             cr.fill();
             text(cr, `${fmtUnits(t.carbs)}g`, x, cy + 5 + fs, 'center');
+            targets.push({kind: 'carbs', key: `c${t.id ?? t.t}`, x, y: cy,
+                label: `Carbs ${fmtUnits(t.carbs)}g at ${when(t.t)}`});
         }
     }
 
@@ -462,6 +504,36 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     cr.setSourceRGBA(1, 1, 1, 0.45);
     const where = v0.offsetMs > 60000 ? ` to ${fmtTime12(tEnd)}` : '';
     text(cr, `${fmtSpan(v0.spanHours)}${where} · ${unitLabel(opts.units)}`, w - padR, fs * 1.35, 'right');
+
+    // the item that was clicked: a ring around it, and its details in a small popup next to it
+    const sel = opts.selected ? targets.find(t => t.key === opts.selected) : null;
+    if (sel) {
+        cr.setLineWidth(2);
+        cr.setSourceRGBA(1, 1, 1, 0.9);
+        cr.arc(sel.x, sel.y, 7, 0, 2 * Math.PI);
+        cr.stroke();
+        if (opts.eventPopup ?? true) {
+            cr.setFontSize(fs);
+            const ext = cr.textExtents(sel.label);
+            const bw = ext.xAdvance + 14, bh = fs + 12;
+            let bx = sel.x + 12, by = sel.y - bh - 10;
+            if (bx + bw > w - 2)
+                bx = sel.x - 12 - bw;
+            if (by < 2)
+                by = sel.y + 12;
+            bx = Math.max(2, bx);
+            cr.setSourceRGBA(0.05, 0.05, 0.06, 0.92);
+            cr.rectangle(bx, by, bw, bh);
+            cr.fill();
+            cr.setSourceRGBA(1, 1, 1, 0.35);
+            cr.setLineWidth(1);
+            cr.rectangle(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+            cr.stroke();
+            cr.setSourceRGBA(1, 1, 1, 0.95);
+            text(cr, sel.label, bx + 7, by + bh / 2 + fs * 0.35);
+        }
+    }
+    return {targets, selected: sel};
 }
 
 // ---------------------------------------------------------------- xDrip+ settings QR code

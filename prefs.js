@@ -428,8 +428,9 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
             title: '48-hour graph',
             description: 'Click the reading in the top bar to see it. In window mode a left click opens or closes ' +
                 'the window and a right click opens the small menu. Both are resizable and remember their size. ' +
-                'On the graph: mouse wheel zooms (remembered), Shift + wheel moves back and forward in time, ' +
-                'middle click shows all 48 hours again.',
+                'On the graph: mouse wheel zooms (remembered); drag, or Shift + wheel, moves back and forward ' +
+                'in time; middle click shows all 48 hours again; click a reading, insulin, carbs or finger-stick ' +
+                'to see its exact time.',
         });
 
         const modes = ['dropdown', 'window'];
@@ -443,6 +444,19 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
             combo.selected = Math.max(0, modes.indexOf(s.get_string('history-mode')));
         });
         group.add(combo);
+
+        const infoModes = ['popup', 'status'];
+        const info = new Adw.ComboRow({
+            title: 'Details of a clicked item',
+            subtitle: 'Its exact time and value',
+            model: Gtk.StringList.new(['Small popup next to it', 'In the line at the bottom']),
+        });
+        info.selected = Math.max(0, infoModes.indexOf(s.get_string('graph-event-info')));
+        info.connect('notify::selected', () => s.set_string('graph-event-info', infoModes[info.selected] ?? 'popup'));
+        s.connect('changed::graph-event-info', () => {
+            info.selected = Math.max(0, infoModes.indexOf(s.get_string('graph-event-info')));
+        });
+        group.add(info);
 
         const resetRow = new Adw.ActionRow({title: 'Reset size and zoom', subtitle: 'Back to the default dropdown and window size, showing all 48 hours'});
         const resetBtn = new Gtk.Button({label: 'Reset', valign: Gtk.Align.CENTER});

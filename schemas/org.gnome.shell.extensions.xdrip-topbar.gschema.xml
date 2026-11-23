@@ -106,6 +106,11 @@
       <default>48</default>
       <summary>Hours shown in the graph (mouse-wheel zoom, remembered)</summary>
     </key>
+    <key name="graph-event-info" type="s">
+      <choices><choice value='popup'/><choice value='status'/></choices>
+      <default>'popup'</default>
+      <summary>Where the details of a clicked graph item appear: a popup next to it, or the status line</summary>
+    </key>
     <key name="dropdown-width" type="i"><default>560</default><summary>Dropdown graph width</summary></key>
     <key name="dropdown-height" type="i"><default>260</default><summary>Dropdown graph height</summary></key>
     <key name="window-width" type="i"><default>720</default><summary>History window width</summary></key>
