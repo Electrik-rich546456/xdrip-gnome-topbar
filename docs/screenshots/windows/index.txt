@@ -1,5 +1,6 @@
 tray-icon.png
 tray-icon-mgdl.png
+tray-icon-waiting.png
 widget.png
 graph.png
 graph-zoomed.png
