@@ -19,6 +19,12 @@
 - Increase `VERSION` in `windows/xdrip_tray.py` for each Windows release. The workflow publishes it as the GitHub Release `windows-v<VERSION>`. Don't upload Actions artifacts. The only exception is the temporary unsigned .exe for SignPath signing (1-day retention, deleted straight after signing).
 - Keep `CODE_SIGNING_POLICY.md` accurate, because SignPath requires it. Only `.github/workflows/windows.yml` on GitHub-hosted runners may produce signed files.
 
+## READMEs differ per branch
+- `README.md` on `main` is the Ubuntu/GNOME page: GNOME install and setup only, plus one link to the Windows README.
+- `README.md` on `windows` is the Windows page ("xDrip+ Tray for Windows"): the full Windows guide and screenshots, plus one link back to `main`.
+- Never copy `README.md` from one branch to the other. When the shared collector or GNOME files are brought from `windows` to `main`, leave `README.md` out.
+- `windows/README.md` only points to the branch README. Link to `blob/windows/README.md`, not to `windows/README.md`.
+
 ## Each release
 - Increase `"version"` in `metadata.json`.
 - Run `python3 collector/xdrip_gnome_collector.py --selftest`.

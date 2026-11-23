@@ -126,7 +126,7 @@ jobs:
           cat > notes.md <<NOTES
           Windows tray app + floating widget for xDrip+ Cloud Sync, version ${version}.
 
-          Download **xDripTray.exe** and follow [the Windows instructions](https://github.com/${{ github.repository }}/blob/windows/windows/README.md).
+          Download **xDripTray.exe** and follow [the Windows instructions](https://github.com/${{ github.repository }}/blob/windows/README.md).
 
           **Check the download:** this .exe was built by GitHub Actions from commit ${{ github.sha }} of this repository. GitHub has signed a record of that build, and you can verify it with \`gh attestation verify xDripTray.exe --repo ${{ github.repository }}\`, or compare the SHA-256 with \`xDripTray.exe.sha256\`. ${SIGNED_NOTE}
 
@@ -138,7 +138,7 @@ jobs:
           |---|---|---|
           | ![Widget](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/widget.png) | ![Tray icon](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/tray-icon.png) | ![Settings](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/settings-collector.png) |
 
-          More in [the Windows guide](https://github.com/${{ github.repository }}/blob/windows/windows/README.md#screenshots). Screenshots are taken automatically with made-up readings.
+          More in [the Windows guide](https://github.com/${{ github.repository }}/blob/windows/README.md#screenshots). Screenshots are taken automatically with made-up readings.
 
           Not a medical device: rely on xDrip+ for alarms.
           NOTES

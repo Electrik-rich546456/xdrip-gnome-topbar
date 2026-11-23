@@ -1,148 +1,176 @@
-# xDrip+ Top Bar (GNOME 46)
+# xDrip+ Tray for Windows
 
 [![Downloads](https://img.shields.io/github/downloads/Electrik-rich546456/xdrip-gnome-topbar/total?label=downloads)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) [![Latest Windows release](https://img.shields.io/github/v/release/Electrik-rich546456/xdrip-gnome-topbar?filter=windows-*&label=windows)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases/latest) [![Licence: GPL-3.0](https://img.shields.io/github/license/Electrik-rich546456/xdrip-gnome-topbar)](LICENSE)
 
-A GNOME Shell extension that shows your latest [xDrip+](https://github.com/NightscoutFoundation/xDrip) glucose reading (mmol/L or mg/dL) in the top bar, with a zoomable 48-hour graph. It brings its own background collector that gets the readings from either of two places:
-- **xDrip+ Cloud Sync**, as a passive follower of your master phone. No Nightscout server is needed.
-- **A Nightscout site**, for setups that upload everything to Nightscout.
+> 🐧 **On Ubuntu / Linux?** Use **[xDrip+ Top Bar for Ubuntu](https://github.com/Electrik-rich546456/xdrip-gnome-topbar)** instead. It's a GNOME top-bar extension with the same graph.
 
-![Graph preview (sample data)](docs/graph-preview.svg)
+Shows your latest [xDrip+](https://github.com/NightscoutFoundation/xDrip) glucose reading on Windows in two places:
+- **Tray icon:** the reading appears as a number in your range colour. Hover over it to see the trend arrow and how many minutes ago the reading was.
+- **Floating widget:** a small always-on-top box showing `6.4 → 3m` that you can drag anywhere.
 
-*The preview above is drawn from made-up readings.*
+Click either one to open a **zoomable 48-hour graph** showing your readings, insulin and carbs. Readings can be shown in **mmol/L or mg/dL**.
 
-**Windows users:** see [Windows](#windows) below.
+The app gets your readings by itself, from either of two places:
+- **xDrip+ Cloud Sync**, like a follower phone. No Nightscout is needed.
+- **Your Nightscout site.**
+
+You don't need Python or anything else installed.
 
 > **Not a medical device.** This is a convenience display. Don't base treatment decisions on it, and rely on xDrip+ itself for alarms. Readings can be late, missing or wrong.
 
-Shows your latest xDrip+ reading in the top bar, as `6.4 → 3m` or `115 → 3m` (mmol/L or mg/dL, trend arrow, minutes since the reading). Click it to see a 48-hour graph styled like the xDrip+ main screen: dots coloured by range, the target band shaded, insulin as blue ▼ and carbs as orange ●, finger-sticks as red dots, and all times on a 12-hour clock.
+## Screenshots
 
-## Install
+*Taken automatically on a Windows PC with made-up readings. They're refreshed whenever the app changes.*
 
-```sh
-./install.sh            # checks requirements, copies, compiles the schema, runs the collector self-test
-# log out and back in once (Wayland)
-gnome-extensions enable xdrip-topbar@local
-gnome-extensions prefs  xdrip-topbar@local
+**The graph:** 48 hours, with insulin (blue ▼), carbs (orange ●) and a finger-stick (red dot)
+![48-hour graph](docs/screenshots/windows/graph.png)
+
+| Zoomed in to 8 hours | In mg/dL |
+|---|---|
+| ![Graph zoomed in](docs/screenshots/windows/graph-zoomed.png) | ![Graph in mg/dL](docs/screenshots/windows/graph-mgdl.png) |
+
+| Floating widget | Tray icon (enlarged) |
+|---|---|
+| ![Floating widget](docs/screenshots/windows/widget.png) ![Floating widget in mg/dL](docs/screenshots/windows/widget-mgdl.png) | ![Tray icon](docs/screenshots/windows/tray-icon.png) |
+
+| Settings: xDrip+ Cloud Sync | Settings: Nightscout |
+|---|---|
+| ![Collector settings](docs/screenshots/windows/settings-collector.png) | ![Nightscout settings](docs/screenshots/windows/settings-nightscout.png) |
+
+| Settings: Display | Settings: Graph |
+|---|---|
+| ![Display settings](docs/screenshots/windows/settings-display.png) | ![Graph settings](docs/screenshots/windows/settings-graph.png) |
+
+## 1. Download
+
+1. Go to the [Releases page](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) and open the newest **xDrip+ Tray for Windows** release.
+2. Download **`xDripTray.exe`**.
+3. Put it somewhere permanent, for example a new folder `C:\Users\<you>\Apps\xDripTray\`. It's a single file, so there's no installer.
+
+**If Windows shows "Windows protected your PC":** Windows SmartScreen shows this the first time you run a new app that isn't yet widely downloaded or code-signed. This app is a small open-source project, and free code signing through the [SignPath Foundation](https://signpath.org) is planned (see the [code signing policy](CODE_SIGNING_POLICY.md)). Click **More info › Run anyway**. Windows won't ask again for this file.
+
+**Checking that the file is genuine (optional):** every release is built by GitHub Actions from this public repository, and GitHub signs a record of each build. You can check it either way:
+```powershell
+# with the GitHub CLI (https://cli.github.com):
+gh attestation verify .\xDripTray.exe --repo Electrik-rich546456/xdrip-gnome-topbar
+
+# or compare the checksum with xDripTray.exe.sha256 from the same release:
+Get-FileHash .\xDripTray.exe -Algorithm SHA256
 ```
 
-In Settings, enter your sync key and choose the data folder.
+## 2a. Using Nightscout?
 
-You need: `python3-cryptography`, `gjs` and `gir1.2-secret-1`. The installer tells you if any of them are missing. To read the QR code from a screenshot you also need `zbar-tools`, which is optional.
-
-## Windows
-
-There's also a **Windows version**. It shows the reading in the taskbar tray and an optional floating widget, with the same 48-hour graph.
-- **Download:** `xDripTray.exe` from [Releases](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases)
-- **Instructions:** the [Windows guide](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/windows/README.md)
-- **Source:** the [`windows` branch](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/tree/windows)
-
-| The graph | Widget and tray icon | Settings |
-|---|---|---|
-| ![Windows graph](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/graph.png) | ![Floating widget](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/widget.png)<br>![Tray icon](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/tray-icon.png) | ![Windows settings](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/settings-collector.png) |
-
-More screenshots are in the [Windows guide](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/windows/README.md#screenshots).
-
-Windows releases are built only by GitHub Actions from this repository, and each one comes with a GitHub build attestation. See the [code signing policy](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/CODE_SIGNING_POLICY.md).
-
-The Windows version hasn't been tested on a real Windows PC yet, so feedback and bug reports are very welcome. Please open an [issue](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/issues).
-
-**Linux requirements:** GNOME Shell 46, which is the default on Ubuntu 24.04.
-
-## Using Nightscout instead
-
-Use this if your phone isn't an xDrip+ master, or if everything is uploaded to a Nightscout site anyway.
+Skip section 2b if your readings are on a Nightscout site, for example because your phone isn't an xDrip+ master and everything is uploaded to Nightscout.
 1. **Make a read-only token** (recommended): open your Nightscout site › **Admin Tools** › **Add new Subject**. Give it the role **readable**, save it, and copy the token shown next to it. It looks like `topbar-1a2b3c4d5e6f7a8b`. Your API secret works too, but a read-only token can't change anything and is easy to revoke.
-2. **Enter it in the extension's settings:** under **Collector › Data source**, choose **Nightscout**. Enter your site address, e.g. `https://mysite.example.com`, and press ✓. Then paste the token into **Access token or API secret** and press ✓. If your site can be read without a token, leave that box empty.
+2. **Enter it in the app:** run `xDripTray.exe`. In Settings › **Collector**, choose **Read readings from: Nightscout**.
+3. Enter your site address, e.g. `https://mysite.example.com`, and click **Apply address**.
+4. Paste the token and click **Save**. If your site can be read without a token, leave it empty.
 
-The collector checks for new readings every minute, and for insulin, carbs and finger-sticks every 5 minutes. The token is kept in GNOME Keyring like the sync key. The top bar, graph and data files work exactly the same as with xDrip+ Cloud Sync.
+The app checks for new readings every minute, and for insulin, carbs and finger-sticks every 5 minutes. It only reads from Nightscout and never writes to it. The token is kept in Windows Credential Manager.
 
-## Getting your sync key (xDrip+ Cloud Sync)
+## 2b. Get your sync key (xDrip+ Cloud Sync)
 
-The collector joins your xDrip+ sync group using your **Handset Group Security Sync Key**. Do everything below on your **master** phone, the one connected to the sensor.
+Do all of this on your **master** phone, the one connected to the sensor.
 
 **First, check sync is on:** in xDrip+, go to **Settings › xDrip+ Sync Settings**. Make sure **Be master for followers** and **Use xDrip+ Cloud** are both ticked. If you can't find xDrip+ Sync Settings, look under **Less Common Settings**.
 
-Then use any one of these three ways to get the key into the extension. In each case, open the extension's settings first with `gnome-extensions prefs xdrip-topbar@local`, or from the top-bar menu › Settings.
+Run `xDripTray.exe`. The Settings window opens by itself the first time. On the **Collector** tab, use any one of these three ways:
 
-### A. Screenshot of the QR code (easiest)
+### A. QR code screenshot (easiest)
 1. In xDrip+, go to **Settings › Show Settings QR codes**, near the bottom, and choose **xDrip+ security key settings only**.
 2. Take a screenshot and copy it to your PC.
-3. In the extension's settings, under **Collector › xDrip+ Cloud Sync**, click **Read the QR code from a screenshot › Choose image…**. This needs `sudo apt install zbar-tools`.
+3. Click **QR screenshot…** and choose the image.
 4. **Delete the screenshot afterwards.** It contains your key.
 
-### B. Paste the scanned QR text
+### B. Scanned QR text
 1. Show the same QR code as in A.
 2. Scan it with any QR scanner app, such as your phone camera or Google Lens on another phone.
 3. Copy the text. It starts with `xdpref:` or `xdp2:`.
-4. Paste it into **Paste the sync key, or the scanned QR text** and press ✓. The extension takes the key out of the text by itself.
+4. Paste it into the key box and click **Save key**. The app takes the key out of the text by itself.
 
 ### C. Type the key
-1. In xDrip+, go to **Settings › xDrip+ Sync Settings › Handset Group Security Sync Key**, and copy or write down the value.
-2. Paste or type it into **Paste the sync key, or the scanned QR text** and press ✓.
+1. In xDrip+, go to **Settings › xDrip+ Sync Settings › Handset Group Security Sync Key**.
+2. Copy it into the key box and click **Save key**.
 
-The key is saved in GNOME Keyring and is never shown again. Anyone with your key can read your glucose data, so treat it like a password. Within a few minutes the top bar shows your reading. If it doesn't, the menu's status line and `collector.log` in your data folder will say why.
+The key is stored in **Windows Credential Manager**, under the name `xdrip-topbar`. It's never shown again and never saved in a plain file. Anyone with your key can read your glucose data, so treat it like a password.
 
-## How it works
+Within a few minutes, the tray icon and widget show your reading.
 
-- **Collector.** When the extension is turned on, it starts `collector/xdrip_gnome_collector.py`, and stops it when the extension is turned off.
-  - It keeps running while the screen is locked. Your reading is hidden on the lock screen itself.
-  - If the collector stops unexpectedly, it is restarted 30 seconds later.
-  - It also exits on its own if GNOME Shell goes away.
-- **Passive by default.** The collector only listens. Switch on *Active* if you want it to appear in xDrip+'s followers list. It uses the name you set, `gnome_info_collector` by default.
-- **Sync key.** It is stored in GNOME Keyring. The extension passes it to the collector through stdin, so it never appears on a command line or in a file.
-- **Data folder** (chosen in Settings, default `~/.local/share/xdrip-topbar`):
-  - `latest.json`: newest reading plus collector status
-  - `history.json`: rolling 48 hours of readings, treatments and finger-sticks
-  - `collector.log`: output of the current run
-  - `.collector_token`, `.collector.lock`: internal files the collector uses
-- **Treatments.** Insulin and carbs only arrive while the collector is running, at the moment you enter or edit them on the phone. Anything entered while it was off won't be in the graph.
+## 3. Using it
 
-## Updating keeps your settings
-
-Running `./install.sh` again only replaces the program files.
-- **Your settings** (colours, range, position, zoom, sizes, data folder…) are stored in GNOME's settings database (dconf), not in the extension folder, so updates don't touch them.
-- **Your sync key** stays in GNOME Keyring.
-- **Your collected data** stays in your data folder.
-
-As a safety net, the installer saves a copy of your settings to `~/.local/share/xdrip-topbar-settings-backup.ini` before every update. To restore it:
-
-```sh
-dconf load /org/gnome/shell/extensions/xdrip-topbar/ < ~/.local/share/xdrip-topbar-settings-backup.ini
-```
-
-## Units
-
-**Settings › Top bar › Units and target range** switches between **mmol/L** (the default) and **mg/dL**. The low and high limits are shown in whichever unit you pick, and the top bar, graph labels and preview follow it.
-
-## Graph controls
-
-| Action | What it does |
+| Where | What to do |
 |---|---|
-| Mouse wheel | Zooms between 1 and 48 hours. The zoom level is remembered. |
-| Shift + wheel, or scrolling sideways | Moves back and forward through the 48 hours. |
-| Middle click | Shows all 48 hours again. |
-| ◢ corner (dropdown) | Drag to resize. The size is remembered. |
+| Tray icon | Hover for the reading, arrow and minutes ago. **Left click** for the graph. **Right click** for the menu: graph, widget on/off, settings, data folder, quit. |
+| Widget | **Drag** to move it, and its position is remembered. **Click** for the graph. **Right click** for the menu. |
+| Graph | **Mouse wheel** zooms between 1 and 48 hours, and the zoom is remembered. **Shift + wheel** moves back and forward in time. **Middle click** shows all 48 hours again. The window remembers its size and position. |
+
+To keep the tray icon visible all the time, go to **Windows Settings › Personalization › Taskbar › Other system tray icons** and turn on **xDripTray**. On Windows 10 you can drag the icon out of the `^` overflow area instead.
+
+## 4. Settings
+
+The Settings window is available from the tray or widget menu.
+
+**Collector tab**
+- **Read readings from:** xDrip+ Cloud Sync or Nightscout. Each one shows its own settings below the choice.
+- **Sync key:** paste the key, load a QR screenshot, or remove the saved key.
+- **Active:** off by default (passive), so the app only listens and sends nothing. When on, the app shows up in xDrip+'s **System status › Followers** list under the name you set, `gnome_info_collector` by default.
+- **Data folder:** where your readings are kept.
+- **Start with Windows:** starts the app when you log in.
+
+**Display tab**
+- **Tray icon and widget:** turn each one on or off. At least one stays on.
+- **Widget appearance:** text size and opacity.
+- **Glucose units:** mmol/L (the default) or mg/dL.
+- **Target range:** low and high limits, shown in your chosen unit. The defaults are 5.0 and 10.0 mmol/L (90 and 180 mg/dL).
+- **Colours:**
+  - The value and the arrow each have their own colour for low, in range and high. Tick **Same colour for arrow** to combine them.
+  - The stale colour is used once no reading has arrived for longer than the time you set.
+
+**Graph tab**
+- Line on or off, smooth or straight, line width, and line colour (by range or one colour).
+- A dot for every reading.
+- Where the line breaks at a gap.
+- Reset zoom.
+
+## Where things are stored
+
+| What | Where |
+|---|---|
+| Settings | `%APPDATA%\xdrip-topbar\settings.json` |
+| Readings (rolling 48 h), latest reading, log | `%LOCALAPPDATA%\xdrip-topbar\`, or the folder you chose. Contains `history.json`, `latest.json` and `collector.log` |
+| Sync key, Nightscout token | Windows Credential Manager › Windows Credentials › `xdrip-topbar` |
+
+**Updating:** quit the app from the tray menu, replace `xDripTray.exe` with the new one, and start it again. Your settings, key and readings are kept.
+
+**Uninstalling:**
+1. Quit the app and untick **Start with Windows** first.
+2. Delete the .exe and the two folders listed in "Where things are stored".
+3. Remove the `xdrip-topbar` entry from Credential Manager.
+
+## Troubleshooting
+
+| Problem | What to check |
+|---|---|
+| Shows `--` and never a reading | **Use xDrip+ Cloud** must be on, on the master phone. Re-save the key, and use option A or B if unsure. Then look at `collector.log` in the data folder, which is reachable from the tray menu › Open data folder. |
+| "could not decode … sync key mismatch?" in the log | Wrong key. Copy it again from the master phone. |
+| "Nightscout refused access (HTTP 401)" | The token or API secret is wrong, or your site needs one and none is saved. Make a new token with the **readable** role. |
+| "Nightscout answered HTTP …" or can't be reached | Check the address opens in a browser, and that it starts with `https://`. |
+| Tray icon sometimes missing | Update to 1.1.3 or newer, which adds the icon again if Windows loses it, for example when the app starts at login before the taskbar is ready. Also keep `xDripTray.exe` in one place with the same name: Windows remembers "show this icon" by file location, so a new download saved as `xDripTray (1).exe` or in another folder starts out hidden again. |
+| "Another copy is already collecting" | The app is already running. Check the tray, including the `^` overflow area. |
+| Readings stop after the PC sleeps | The app reconnects by itself within a few minutes of waking. Meanwhile the reading turns your stale colour. |
+| Insulin or carbs missing from the graph | Treatments only arrive while the app is running, at the moment they're entered or edited on the phone. |
 
 ## Privacy
 
-- Your sync key stays in GNOME Keyring on your machine.
-- Glucose and treatment data are only written to the data folder you choose.
-- With Nightscout, the collector only reads from your site and never writes to it. A token with the **readable** role is enough.
-- In passive mode, nothing is ever sent to the xDrip+ group.
-- Don't commit your data folder or sync key anywhere public.
+- **Passive mode (the default):** the app sends nothing to your xDrip+ group. It only makes the connection and sends the acknowledgements the Cloud Sync protocol needs.
+- **Nightscout:** the app only reads from your site and never writes to it.
+- **Your data:** readings stay in your data folder. Nothing is uploaded anywhere else.
+- **Your key and token:** they're only in Windows Credential Manager.
 
-## Credits and licence
+## Building it yourself
 
-The Cloud Sync protocol details (server, framing, encryption) come from reading the open-source xDrip+ app (GPL-3.0). This project is also GPL-3.0, so see `LICENSE`. It isn't affiliated with the xDrip+ or Nightscout projects.
-
-## Testing without GNOME
-
-```sh
-python3 collector/xdrip_gnome_collector.py --selftest
-# a manual run against the real server (key from the environment):
-XDRIP_SYNC_KEY='…' python3 collector/xdrip_gnome_collector.py --data-dir /tmp/xd --no-parent-watch
+The `.github/workflows/windows.yml` workflow builds the .exe with PyInstaller on GitHub's Windows machines, runs the self-tests, and publishes it as a Release. To run the app from source instead:
+```powershell
+pip install pystray pillow keyring cryptography zxing-cpp
+python windows\xdrip_tray.py
 ```
-
-To see extension errors: `journalctl -f -o cat /usr/bin/gnome-shell`. For the settings and history windows: `journalctl -f -o cat /usr/bin/gjs`.
-
-This is a convenience display, not a medical device. Rely on xDrip+ for alarms.

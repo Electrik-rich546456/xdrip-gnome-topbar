@@ -48,4 +48,4 @@ In the repository, go to **Settings › Secrets and variables › Actions**.
 
 **Actions artifacts:** SignPath can only collect the file as an Actions artifact. The workflow uploads it with 1-day retention and deletes it as soon as the signed file is back, so it hardly uses any storage.
 
-**Once signing is active,** update `CODE_SIGNING_POLICY.md` (change "Status" to say releases are signed) and the "Windows protected your PC" section of `windows/README.md`.
+**Once signing is active,** update `CODE_SIGNING_POLICY.md` (change "Status" to say releases are signed) and the "Windows protected your PC" section of `README.md` on the `windows` branch.
