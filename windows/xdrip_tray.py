@@ -340,15 +340,15 @@ def set_start_with_windows(on):
 
 # ============================================================================ GUI
 class App:
-    def __init__(self):
+    def __init__(self, settings=None, collector=None):
         import tkinter as tk
         self.tk = tk
-        self.settings = Settings()
+        self.settings = settings or Settings()
         self.q = queue.Queue()                       # work handed to the Tk thread
         self.root = tk.Tk()
         self.root.withdraw()
         self.root.title(APP_NAME)
-        self.collector = Collector(self.settings, lambda: self.q.put(self.refresh))
+        self.collector = collector or Collector(self.settings, lambda: self.q.put(self.refresh))
         self.widget = None
         self.graph_win = None
         self.settings_win = None
@@ -1115,7 +1115,192 @@ def selftest(out_path=None):
     return 0 if ok else 1
 
 
+# ============================================================================ screenshots (used by CI)
+class DemoCollector:
+    """Made-up readings for screenshots: no network, nothing saved."""
+    problem = None
+
+    def __init__(self):
+        import math
+        now = int(time.time() * 1000)
+        readings, v = [], 7.0
+        for i in range(48 * 12, -1, -1):
+            t = now - i * 300000
+            h = time.localtime(t / 1000).tm_hour + time.localtime(t / 1000).tm_min / 60
+            meal = sum(math.exp(-((h - m - 1) ** 2) / 0.8) * 5.5 for m in (8, 13, 19))
+            v += ((6 + meal) - v) * 0.15
+            if now - 30 * 3600000 < t < now - 29.2 * 3600000:
+                continue                                         # a gap, like a phone out of range
+            mg = max(2.6, v - (2.6 if 3 < h < 4.3 else 0)) * col.MGDL_PER_MMOL
+            readings.append({"t": t, "mgdl": round(mg, 1), "mmol": round(mg / col.MGDL_PER_MMOL, 2),
+                             "slope": 0.3, "trend": "Flat"})
+        readings[-1]["trend"] = "FortyFiveUp"
+        readings[-1]["t"] = now - 3 * 60000
+        tr = []
+        for day in (0, 1):
+            for hr, ins, carbs in ((8, 5, 45), (13, 6, 60), (19, 7, 70)):
+                t = now - day * 86400000
+                lt = time.localtime(t / 1000)
+                t = int(time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, hr, 0, 0, 0, 0, -1)) * 1000)
+                if now - 48 * 3600000 < t < now:
+                    tr.append({"id": "i%d%d" % (day, hr), "t": t, "insulin": ins, "carbs": 0})
+                    tr.append({"id": "c%d%d" % (day, hr), "t": t + 600000, "insulin": 0, "carbs": carbs})
+        self.hist = {"readings": readings, "treatments": sorted(tr, key=lambda x: x["t"]),
+                     "bloodtests": [{"t": now - 20 * 3600000, "mgdl": 126.0, "mmol": 7.0}]}
+        self.status = {"connected": True, "source": "xdrip-cloud", "active": False, "name": None,
+                       "last_message_ms": now - 3 * 60000}
+
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def restart(self):
+        pass
+
+    def snapshot(self):
+        return self.hist["readings"][-1], self.hist, self.status
+
+
+def screenshots(out_dir):
+    """Opens the real windows with made-up data and saves a PNG of each one."""
+    import tempfile
+    from PIL import ImageGrab
+    os.makedirs(out_dir, exist_ok=True)
+    tmp = tempfile.mkdtemp()
+    settings = Settings(os.path.join(tmp, "settings.json"))
+    settings["data_dir"] = os.path.join(tmp, "data")
+    settings["show_tray"] = False
+    settings["widget_x"], settings["widget_y"] = 60, 60
+    settings["widget_font_size"] = 18
+    settings["graph_geometry"] = "820x360+60+170"
+    app = App(settings, DemoCollector())
+    app.collector.on_change = lambda: None
+    root = app.root
+    shots = []
+
+    def grab(win, name, pad=0):
+        win.update_idletasks()
+        win.update()
+        x, y = win.winfo_rootx() - pad, win.winfo_rooty() - pad
+        w, h = win.winfo_width() + 2 * pad, win.winfo_height() + 2 * pad
+        ImageGrab.grab(bbox=(x, y, x + w, y + h), all_screens=True).save(os.path.join(out_dir, name))
+        shots.append(name)
+
+    def frame_of(win):
+        """Outer window including the title bar (Windows only), else the client area."""
+        if IS_WINDOWS:
+            try:
+                import ctypes
+                from ctypes import wintypes
+                hwnd = ctypes.windll.user32.GetParent(win.winfo_id())
+                r = wintypes.RECT()
+                ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(r), ctypes.sizeof(r))
+                return (r.left, r.top, r.right, r.bottom)
+            except Exception:
+                pass
+        return (win.winfo_rootx(), win.winfo_rooty(),
+                win.winfo_rootx() + win.winfo_width(), win.winfo_rooty() + win.winfo_height())
+
+    def grab_frame(win, name):
+        win.update_idletasks()
+        win.update()
+        ImageGrab.grab(bbox=frame_of(win), all_screens=True).save(os.path.join(out_dir, name))
+        shots.append(name)
+
+    steps = []
+
+    def step(fn, delay=900):
+        steps.append((fn, delay))
+
+    def run_next():
+        if not steps:
+            with open(os.path.join(out_dir, "index.txt"), "w") as fh:
+                fh.write("\n".join(shots) + "\n")
+            root.destroy()
+            return
+        fn, delay = steps.pop(0)
+        try:
+            fn()
+        except Exception as e:
+            print("screenshot step failed: %s" % e)
+        root.after(delay, run_next)
+
+    # tray icon: the exact image the tray shows, enlarged so it can be seen
+    def tray():
+        for name, units in (("tray-icon.png", "mmol"), ("tray-icon-mgdl.png", "mgdl")):
+            settings["units"] = units
+            img = app.tray_image(app.current()).resize((128, 128))
+            img.save(os.path.join(out_dir, name))
+            shots.append(name)
+        settings["units"] = "mmol"
+
+    step(tray, 100)
+    step(app.show_widget, 1200)
+    step(lambda: grab(app.widget.top, "widget.png", pad=0))
+    step(app.toggle_graph, 1500)
+    step(lambda: grab_frame(app.graph_win.top, "graph.png"))
+
+    def zoom():
+        app.set_view({"span_hours": 8.0, "offset_ms": 0})
+    step(zoom, 1200)
+    step(lambda: grab_frame(app.graph_win.top, "graph-zoomed.png"))
+
+    def mgdl():
+        settings["units"] = "mgdl"
+        app.set_view({"span_hours": 48.0, "offset_ms": 0})
+        app.refresh()
+    step(mgdl, 1200)
+    step(lambda: grab_frame(app.graph_win.top, "graph-mgdl.png"))
+    step(lambda: grab(app.widget.top, "widget-mgdl.png"))
+
+    def to_mmol():
+        settings["units"] = "mmol"
+        app.refresh()
+        app.graph_win.close()
+        app.open_settings()
+        app.settings_win.top.geometry("+60+60")
+    step(to_mmol, 1500)
+
+    def tab(i, name):
+        def f():
+            nb = [w for w in app.settings_win.top.winfo_children() if w.winfo_class() == "TNotebook"][0]
+            nb.select(i)
+        step(f, 900)
+        step(lambda: grab_frame(app.settings_win.top, name))
+    tab(0, "settings-collector.png")
+
+    def ns():
+        app.settings_win.src_var.set("nightscout")
+        settings["data_source"] = "nightscout"
+        app.settings_win._show_source()
+    step(ns, 900)
+    step(lambda: grab_frame(app.settings_win.top, "settings-nightscout.png"))
+
+    def back():
+        app.settings_win.src_var.set("xdrip-cloud")
+        settings["data_source"] = "xdrip-cloud"
+        app.settings_win._show_source()
+    step(back, 300)
+    tab(1, "settings-display.png")
+    tab(2, "settings-graph.png")
+
+    root.after(800, run_next)
+    root.mainloop()
+    print("saved: %s" % ", ".join(shots))
+    return 0
+
+
 def main():
+    if "--screenshots" in sys.argv:
+        if IS_WINDOWS:
+            try:
+                import ctypes
+                ctypes.windll.shcore.SetProcessDpiAwareness(1)
+            except Exception:
+                pass
+        sys.exit(screenshots(sys.argv[sys.argv.index("--screenshots") + 1]))
     if "--selftest" in sys.argv:
         i = sys.argv.index("--selftest")
         out = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
