@@ -1,8 +1,10 @@
-# xDrip+ Top Bar (GNOME 46)
+# xDrip+ Top Bar for Ubuntu
 
-[![Downloads](https://img.shields.io/github/downloads/Electrik-rich546456/xdrip-gnome-topbar/total?label=downloads)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) [![Latest Windows release](https://img.shields.io/github/v/release/Electrik-rich546456/xdrip-gnome-topbar?filter=windows-*&label=windows)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases/latest) [![Licence: GPL-3.0](https://img.shields.io/github/license/Electrik-rich546456/xdrip-gnome-topbar)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/Electrik-rich546456/xdrip-gnome-topbar/total?label=downloads)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) [![GNOME 46](https://img.shields.io/badge/GNOME-46-4a86cf)](#install) [![Licence: GPL-3.0](https://img.shields.io/github/license/Electrik-rich546456/xdrip-gnome-topbar)](LICENSE)
 
-A GNOME Shell extension that shows your latest [xDrip+](https://github.com/NightscoutFoundation/xDrip) glucose reading (mmol/L or mg/dL) in the top bar, with a zoomable 48-hour graph. It brings its own background collector that gets the readings from either of two places:
+> 🪟 **On Windows?** Use **[xDrip+ Tray for Windows](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/README.md)** instead. It has a tray icon, a floating widget and the same graph.
+
+A GNOME Shell extension that shows your latest [xDrip+](https://github.com/NightscoutFoundation/xDrip) glucose reading (mmol/L or mg/dL) in the Ubuntu top bar, with a zoomable 48-hour graph. It brings its own background collector that gets the readings from either of two places:
 - **xDrip+ Cloud Sync**, as a passive follower of your master phone. No Nightscout server is needed.
 - **A Nightscout site**, for setups that upload everything to Nightscout.
 
@@ -10,43 +12,30 @@ A GNOME Shell extension that shows your latest [xDrip+](https://github.com/Night
 
 *The preview above is drawn from made-up readings.*
 
-**Windows users:** see [Windows](#windows) below.
-
 > **Not a medical device.** This is a convenience display. Don't base treatment decisions on it, and rely on xDrip+ itself for alarms. Readings can be late, missing or wrong.
 
-Shows your latest xDrip+ reading in the top bar, as `6.4 → 3m` or `115 → 3m` (mmol/L or mg/dL, trend arrow, minutes since the reading). Click it to see a 48-hour graph styled like the xDrip+ main screen: dots coloured by range, the target band shaded, insulin as blue ▼ and carbs as orange ●, finger-sticks as red dots, and all times on a 12-hour clock.
+The top bar shows `6.4 → 3m` or `115 → 3m` (mmol/L or mg/dL, trend arrow, minutes since the reading). Click it to see a 48-hour graph styled like the xDrip+ main screen: line coloured by range, the target band shaded, insulin as blue ▼ and carbs as orange ●, finger-sticks as red dots, and all times on a 12-hour clock.
 
 ## Install
 
+**You need** Ubuntu 24.04 or another Linux with **GNOME Shell 46** (check with `gnome-shell --version`), plus `python3-cryptography`, `gjs` and `gir1.2-secret-1`. The installer tells you if any of them are missing. `zbar-tools` is optional and only needed to read the QR code from a screenshot.
+
 ```sh
-./install.sh            # checks requirements, copies, compiles the schema, runs the collector self-test
-# log out and back in once (Wayland)
+git clone https://github.com/Electrik-rich546456/xdrip-gnome-topbar
+cd xdrip-gnome-topbar
+./install.sh            # checks requirements, copies, compiles the settings, runs the collector self-test
+```
+
+Next, restart GNOME Shell. On **X11**, press **Alt+F2**, type `r` and press Enter; your windows stay open. On **Wayland**, log out and back in. Then:
+
+```sh
 gnome-extensions enable xdrip-topbar@local
 gnome-extensions prefs  xdrip-topbar@local
 ```
 
-In Settings, enter your sync key and choose the data folder.
+In the settings, choose your data source and enter your sync key (see below) or your Nightscout details.
 
-You need: `python3-cryptography`, `gjs` and `gir1.2-secret-1`. The installer tells you if any of them are missing. To read the QR code from a screenshot you also need `zbar-tools`, which is optional.
-
-## Windows
-
-There's also a **Windows version**. It shows the reading in the taskbar tray and an optional floating widget, with the same 48-hour graph.
-- **Download:** `xDripTray.exe` from [Releases](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases)
-- **Instructions:** the [Windows guide](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/windows/README.md)
-- **Source:** the [`windows` branch](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/tree/windows)
-
-| The graph | Widget and tray icon | Settings |
-|---|---|---|
-| ![Windows graph](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/graph.png) | ![Floating widget](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/widget.png)<br>![Tray icon](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/tray-icon.png) | ![Windows settings](https://raw.githubusercontent.com/Electrik-rich546456/xdrip-gnome-topbar/windows/docs/screenshots/windows/settings-collector.png) |
-
-More screenshots are in the [Windows guide](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/windows/README.md#screenshots).
-
-Windows releases are built only by GitHub Actions from this repository, and each one comes with a GitHub build attestation. See the [code signing policy](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/CODE_SIGNING_POLICY.md).
-
-The Windows version hasn't been tested on a real Windows PC yet, so feedback and bug reports are very welcome. Please open an [issue](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/issues).
-
-**Linux requirements:** GNOME Shell 46, which is the default on Ubuntu 24.04.
+**To update later:** `cd xdrip-gnome-topbar && git pull && ./install.sh`, then restart GNOME Shell as above.
 
 ## Using Nightscout instead
 
