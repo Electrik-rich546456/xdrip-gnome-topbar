@@ -1,5 +1,7 @@
 # xDrip+ Top Bar (GNOME 46)
 
+[![Downloads](https://img.shields.io/github/downloads/Electrik-rich546456/xdrip-gnome-topbar/total?label=downloads)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) [![Latest Windows release](https://img.shields.io/github/v/release/Electrik-rich546456/xdrip-gnome-topbar?filter=windows-*&label=windows)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases/latest) [![Licence: GPL-3.0](https://img.shields.io/github/license/Electrik-rich546456/xdrip-gnome-topbar)](LICENSE)
+
 A GNOME Shell extension that shows your latest [xDrip+](https://github.com/NightscoutFoundation/xDrip) glucose reading (mmol/L or mg/dL) in the top bar, with a zoomable 48-hour graph. It brings its own background collector that gets the readings from either of two places:
 - **xDrip+ Cloud Sync**, as a passive follower of your master phone. No Nightscout server is needed.
 - **A Nightscout site**, for setups that upload everything to Nightscout.
