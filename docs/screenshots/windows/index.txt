@@ -4,6 +4,7 @@ tray-icon-waiting.png
 widget.png
 graph.png
 graph-zoomed.png
+graph-details.png
 graph-mgdl.png
 widget-mgdl.png
 settings-collector.png
