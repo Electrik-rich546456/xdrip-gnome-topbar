@@ -24,7 +24,7 @@ Every signing request is approved by hand. All team members use multi-factor aut
 This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
 
 Specifically:
-- **The only network connection** is the one you configure: either to the xDrip Cloud Sync server, to receive your own glucose data from your own xDrip sync group using the sync key you enter, or to your own Nightscout site, to read your data with the token you enter. Nightscout is only ever read, never written to.
+- **The only network connection** is the one you configure: either to the xDrip+ Cloud Sync server, to receive your own glucose data from your own xDrip+ sync group using the sync key you enter, or to your own Nightscout site, to read your data with the token you enter. Nightscout is only ever read, never written to.
 - **In passive mode (the default),** the app sends nothing to the group apart from the connection handshake and the acknowledgements the protocol needs.
 - **In active mode (which you have to switch on),** it also announces itself in your group's followers list.
 - **Your data stays on your computer.** Readings are kept in your data folder, and the sync key or Nightscout token is kept in Windows Credential Manager. No analytics, no telemetry, no update checks.

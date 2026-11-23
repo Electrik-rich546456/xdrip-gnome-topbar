@@ -13,7 +13,7 @@
     </key>
     <key name="rollcall-name" type="s">
       <default>'gnome_info_collector'</default>
-      <summary>Name shown in xDrip followers list when active</summary>
+      <summary>Name shown in xDrip+ followers list when active</summary>
     </key>
     <key name="key-stamp" type="i">
       <default>0</default>
@@ -22,7 +22,7 @@
     <key name="data-source" type="s">
       <choices><choice value='xdrip-cloud'/><choice value='nightscout'/></choices>
       <default>'xdrip-cloud'</default>
-      <summary>Where the readings come from: xDrip Cloud Sync or a Nightscout site</summary>
+      <summary>Where the readings come from: xDrip+ Cloud Sync or a Nightscout site</summary>
     </key>
     <key name="nightscout-url" type="s">
       <default>''</default>
