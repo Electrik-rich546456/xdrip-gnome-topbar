@@ -1,0 +1,78 @@
+# Publishes each GNOME extension version as a GitHub Release (tag gnome-v<version from metadata.json>)
+# with a downloadable zip, so Ubuntu installs can be counted. Runs when metadata.json changes.
+# An existing release is never replaced (that would reset its download count): bump "version" instead.
+name: GNOME release
+
+on:
+  push:
+    branches: [main]
+    paths: ["metadata.json", ".github/workflows/gnome-release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: gnome-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checks
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libglib2.0-bin python3-cryptography >/dev/null
+          glib-compile-schemas --strict --dry-run schemas
+          python3 collector/xdrip_gnome_collector.py --selftest | tail -1
+
+      - name: Version
+        id: v
+        run: |
+          v=$(python3 -c "import json;print(json.load(open('metadata.json'))['version'])")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if gh release view "gnome-v$v" >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build zip
+        if: steps.v.outputs.exists == 'false'
+        run: |
+          mkdir -p dist
+          git archive --format=zip --prefix=xdrip-gnome-topbar/ -o dist/xdrip-topbar-gnome.zip HEAD
+          (cd dist && sha256sum xdrip-topbar-gnome.zip > xdrip-topbar-gnome.zip.sha256)
+
+      - name: Build attestation
+        if: steps.v.outputs.exists == 'false'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/xdrip-topbar-gnome.zip
+
+      - name: Publish release
+        if: steps.v.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="${{ steps.v.outputs.version }}"
+          cat > notes.md <<NOTES
+          GNOME Shell extension for Ubuntu (GNOME 46), version ${v}.
+
+          **Install or update:** download **xdrip-topbar-gnome.zip**, unzip it, open a terminal in the \`xdrip-gnome-topbar\` folder and run \`./install.sh\`. Then restart GNOME Shell: on X11 press Alt+F2, type \`r\` and press Enter; on Wayland log out and back in. Your settings, sync key and data are kept.
+
+          Full instructions: [README](https://github.com/${{ github.repository }}#install). Or use \`git clone\` / \`git pull\` as described there.
+
+          Built by GitHub Actions from commit ${{ github.sha }}; check it with \`gh attestation verify xdrip-topbar-gnome.zip --repo ${{ github.repository }}\`.
+
+          Not a medical device: rely on xDrip+ for alarms.
+          NOTES
+          gh release create "gnome-v${v}" dist/xdrip-topbar-gnome.zip dist/xdrip-topbar-gnome.zip.sha256 \
+            --target "${{ github.sha }}" --title "xDrip+ Top Bar for Ubuntu (GNOME) v${v}" --notes-file notes.md --latest=false
+
+      - name: Already published
+        if: steps.v.outputs.exists == 'true'
+        run: echo "gnome-v${{ steps.v.outputs.version }} already exists - nothing to do (bump the version in metadata.json to publish)."

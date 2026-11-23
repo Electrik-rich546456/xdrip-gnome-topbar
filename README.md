@@ -1,6 +1,6 @@
 # xDrip+ Top Bar for Ubuntu
 
-[![Downloads](https://img.shields.io/github/downloads/Electrik-rich546456/xdrip-gnome-topbar/total?label=downloads)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) [![GNOME 46](https://img.shields.io/badge/GNOME-46-4a86cf)](#install) [![Licence: GPL-3.0](https://img.shields.io/github/license/Electrik-rich546456/xdrip-gnome-topbar)](LICENSE)
+[![Ubuntu downloads](https://img.shields.io/github/downloads/Electrik-rich546456/xdrip-gnome-topbar/xdrip-topbar-gnome.zip?displayAssetName=false&label=Ubuntu%20downloads)](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases?q=gnome&expanded=true) [![GNOME 46](https://img.shields.io/badge/GNOME-46-4a86cf)](#install) [![Licence: GPL-3.0](https://img.shields.io/github/license/Electrik-rich546456/xdrip-gnome-topbar)](LICENSE)
 
 > 🪟 **On Windows?** Use **[xDrip+ Tray for Windows](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/README.md)** instead. It has a tray icon, a floating widget and the same graph.
 
@@ -20,6 +20,8 @@ The top bar shows `6.4 → 3m` or `115 → 3m` (mmol/L or mg/dL, trend arrow, mi
 
 **You need** Ubuntu 24.04 or another Linux with **GNOME Shell 46** (check with `gnome-shell --version`), plus `python3-cryptography`, `gjs` and `gir1.2-secret-1`. The installer tells you if any of them are missing. `zbar-tools` is optional and only needed to read the QR code from a screenshot.
 
+**Either** download `xdrip-topbar-gnome.zip` from the newest [Ubuntu release](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases?q=gnome&expanded=true), unzip it and open a terminal in the `xdrip-gnome-topbar` folder, then run `./install.sh`. **Or** use git:
+
 ```sh
 git clone https://github.com/Electrik-rich546456/xdrip-gnome-topbar
 cd xdrip-gnome-topbar
@@ -35,7 +37,7 @@ gnome-extensions prefs  xdrip-topbar@local
 
 In the settings, choose your data source and enter your sync key (see below) or your Nightscout details.
 
-**To update later:** `cd xdrip-gnome-topbar && git pull && ./install.sh`, then restart GNOME Shell as above.
+**To update later:** download the newest zip and run `./install.sh` again, or `cd xdrip-gnome-topbar && git pull && ./install.sh`. Then restart GNOME Shell as above. Your settings, sync key and data are kept.
 
 ## Using Nightscout instead
 
