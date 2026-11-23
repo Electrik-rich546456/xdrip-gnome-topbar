@@ -35,7 +35,7 @@ app.connect('activate', () => {
 
     const win = new Gtk.ApplicationWindow({
         application: app,
-        title: 'xDrip — last 48 hours',
+        title: 'xDrip+ — last 48 hours',
         default_width: settings.get_int('window-width'),
         default_height: settings.get_int('window-height'),
     });

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-xDrip top-bar collector (started and stopped by the GNOME extension "xDrip Top Bar").
+xDrip+ top-bar collector (started and stopped by the GNOME extension "xDrip+ Top Bar").
 
-Joins the xDrip Cloud Sync group like one more follower phone and keeps two small files in
+Joins the xDrip+ Cloud Sync group like one more follower phone and keeps two small files in
 the data folder chosen in the extension's settings:
 
   latest.json    newest glucose reading + collector status (read by the top bar)
@@ -10,7 +10,7 @@ the data folder chosen in the extension's settings:
 
 PASSIVE by default: it only listens and sends nothing, so it does not appear on the phone.
 With --active it sends the battery + roll-call requests a follower phone sends and shows up in
-xDrip "System status > Followers" under --name (default gnome_info_collector).
+xDrip+ "System status > Followers" under --name (default gnome_info_collector).
 
 The sync key is read from the first line of standard input (--key-stdin, what the extension
 does) or from the environment variable XDRIP_SYNC_KEY.  It is never printed or written to disk.
@@ -45,7 +45,7 @@ import urllib.request
 import zlib
 
 # ----------------------------------------------------------------------------
-# Constants taken from the xDrip source (same as xdrip_cloud_follow_v3)
+# Constants taken from the xDrip+ source (same as xdrip_cloud_follow_v3)
 # ----------------------------------------------------------------------------
 SERVER = "jamcm3749021.bluejay.website"
 PORT = 25935
@@ -205,7 +205,7 @@ def _pb_double(v):
 
 
 # ----------------------------------------------------------------------------
-# xDrip message contents
+# xDrip+ message contents
 # ----------------------------------------------------------------------------
 def trend_ordinal(slope_per_min, hide):
     """BgReading.getSlopeOrdinal()"""
@@ -285,7 +285,7 @@ def decode_message(aes_key, msg):
     ev = {"action": action, "readings": [], "bloodtests": [], "text": None, "json": None}
     if not payload:
         return ev
-    if len(payload) <= 16:                     # xDrip sends tiny payloads unencrypted
+    if len(payload) <= 16:                     # xDrip+ sends tiny payloads unencrypted
         ev["text"] = payload.decode("utf-8", "replace")
         return ev
     plain = decrypt(aes_key, payload)
@@ -821,12 +821,12 @@ def get_token(folder):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="xDrip collector for the GNOME top-bar extension")
+    ap = argparse.ArgumentParser(description="xDrip+ collector for the GNOME top-bar extension")
     ap.add_argument("--data-dir", help="folder for latest.json and history.json")
     ap.add_argument("--key-stdin", action="store_true",
                     help="read the sync key (or the Nightscout token / API secret) from the first line of stdin")
     ap.add_argument("--source", choices=("xdrip-cloud", "nightscout"), default="xdrip-cloud",
-                    help="where the data comes from (default: xDrip Cloud Sync)")
+                    help="where the data comes from (default: xDrip+ Cloud Sync)")
     ap.add_argument("--ns-url", help="Nightscout address, e.g. https://mysite.example.com")
     ap.add_argument("--active", action="store_true", help="announce in roll call and ask for batteries")
     ap.add_argument("--name", default=DEFAULT_NAME, help="roll-call name when --active (default %(default)s)")

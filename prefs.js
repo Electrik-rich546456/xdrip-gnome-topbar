@@ -1,4 +1,4 @@
-// Settings window for xDrip Top Bar (GNOME 46, libadwaita)
+// Settings window for xDrip+ Top Bar (GNOME 46, libadwaita)
 
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
@@ -81,9 +81,9 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         const sources = ['xdrip-cloud', 'nightscout'];
         const src = new Adw.ComboRow({
             title: 'Read readings from',
-            subtitle: 'xDrip Cloud Sync: follows your master phone directly. ' +
+            subtitle: 'xDrip+ Cloud Sync: follows your master phone directly. ' +
                 'Nightscout: for setups that upload everything to a Nightscout site.',
-            model: Gtk.StringList.new(['xDrip Cloud Sync', 'Nightscout']),
+            model: Gtk.StringList.new(['xDrip+ Cloud Sync', 'Nightscout']),
         });
         src.selected = Math.max(0, sources.indexOf(s.get_string('data-source')));
         src.connect('notify::selected', () => s.set_string('data-source', sources[src.selected] ?? 'xdrip-cloud'));
@@ -131,8 +131,8 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
 
         // --- sync key
         const keyGroup = new Adw.PreferencesGroup({
-            title: 'xDrip Cloud Sync',
-            description: 'Make sure “Use xDrip Cloud” is on in xDrip › Settings › xDrip Sync Settings on your ' +
+            title: 'xDrip+ Cloud Sync',
+            description: 'Make sure “Use xDrip+ Cloud” is on in xDrip+ › Settings › xDrip+ Sync Settings on your ' +
                 'master phone. The sync key is stored in your GNOME Keyring. It is never shown here, ' +
                 'never saved in plain text and never put on the collector’s command line.',
         });
@@ -149,7 +149,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
             storeKey(key, ok => {
                 if (ok) {
                     s.set_int('key-stamp', s.get_int('key-stamp') + 1);     // tells the extension to restart the collector
-                    const warn = key.length <= 16 ? ' (warning: xDrip keys are usually longer than 16 characters)' : '';
+                    const warn = key.length <= 16 ? ' (warning: xDrip+ keys are usually longer than 16 characters)' : '';
                     window.add_toast(new Adw.Toast({title: `Sync key saved${warn}`}));
                 } else {
                     window.add_toast(new Adw.Toast({title: 'Could not save to the keyring'}));
@@ -157,7 +157,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
                 refresh();
             });
         };
-        // accepts the key itself, or the text of the xDrip settings QR code (xdpref:… / xdp2:…)
+        // accepts the key itself, or the text of the xDrip+ settings QR code (xdpref:… / xdp2:…)
         const useText = (text, emptyMsg) => {
             let key = (text || '').trim();
             try {
@@ -187,7 +187,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         // a screenshot / photo of the QR code, read with zbarimg (package zbar-tools)
         const qrRow = new Adw.ActionRow({
             title: 'Read the QR code from a screenshot',
-            subtitle: 'xDrip › Settings › Show Settings QR codes › xDrip security key settings only. ' +
+            subtitle: 'xDrip+ › Settings › Show Settings QR codes › xDrip+ security key settings only. ' +
                 'Needs zbar-tools (sudo apt install zbar-tools). Delete the screenshot afterwards.',
         });
         const qrBtn = new Gtk.Button({label: 'Choose image…', valign: Gtk.Align.CENTER});
@@ -197,7 +197,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
             filter.add_mime_type('image/*');
             const filters = new Gio.ListStore({item_type: Gtk.FileFilter});
             filters.append(filter);
-            const dlg = new Gtk.FileDialog({title: 'Screenshot of the xDrip QR code', modal: true, filters});
+            const dlg = new Gtk.FileDialog({title: 'Screenshot of the xDrip+ QR code', modal: true, filters});
             dlg.open(window, null, (d, res) => {
                 let path;
                 try {
@@ -222,7 +222,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
                     } catch (e) { /* ignore */ }
                     const line = (out || '').split('\n').find(l => l.startsWith('xdpref:') || l.startsWith('xdp2:'));
                     if (!line) {
-                        window.add_toast(new Adw.Toast({title: 'No xDrip settings QR code found in that image', timeout: 6}));
+                        window.add_toast(new Adw.Toast({title: 'No xDrip+ settings QR code found in that image', timeout: 6}));
                         return;
                     }
                     useText(line, 'No sync key found');
@@ -244,12 +244,12 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
             title: 'Visibility',
             description: 'Passive (default): only listens, sends nothing, does not appear on your phone. ' +
                 'Active: sends the battery and roll-call requests a follower phone sends and appears in ' +
-                'xDrip System status › Followers under the name below.',
+                'xDrip+ System status › Followers under the name below.',
         });
-        const active = new Adw.SwitchRow({title: 'Active', subtitle: 'Announce this computer to the xDrip group'});
+        const active = new Adw.SwitchRow({title: 'Active', subtitle: 'Announce this computer to the xDrip+ group'});
         s.bind('active', active, 'active', Gio.SettingsBindFlags.DEFAULT);
         modeGroup.add(active);
-        const name = applyEntryRow(s, 'rollcall-name', 'Name shown in xDrip when active');
+        const name = applyEntryRow(s, 'rollcall-name', 'Name shown in xDrip+ when active');
         s.bind('active', name, 'sensitive', Gio.SettingsBindFlags.GET);
         modeGroup.add(name);
         page.add(modeGroup);
@@ -277,7 +277,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         dirRow.add_suffix(choose);
         dirRow.add_suffix(reset);
         choose.connect('clicked', () => {
-            const dlg = new Gtk.FileDialog({title: 'Folder for xDrip data', modal: true});
+            const dlg = new Gtk.FileDialog({title: 'Folder for xDrip+ data', modal: true});
             try {
                 dlg.set_initial_folder(Gio.File.new_for_path(dataDir(s)));
             } catch (e) { /* folder may not exist yet */ }

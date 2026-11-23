@@ -331,7 +331,7 @@ def draw_graph(w, h, history, opts, now_ms, view=None):
         r_ = S(rad + 1.5)
         dr.ellipse([x - r_, y - r_, x + r_, y + r_], fill=hex_rgb(FINGER_COLOR))
 
-    # treatments on the glucose line, amount written next to them (like xDrip)
+    # treatments on the glucose line, amount written next to them (like xDrip+)
     clamp_y = lambda y: max(top + S(2), min(bottom - S(2), y))
     for t in treatments:
         x = X(min(t["t"], now_ms))

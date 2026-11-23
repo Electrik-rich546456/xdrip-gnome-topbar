@@ -1,24 +1,22 @@
-# xDrip Tray for Windows
+# xDrip+ Tray for Windows
 
-Shows your latest [xDrip](https://github.com/NightscoutFoundation/xDrip) glucose reading on Windows in two places:
+Shows your latest [xDrip+](https://github.com/NightscoutFoundation/xDrip) glucose reading on Windows in two places:
 - **Tray icon:** the reading appears as a number in your range colour. Hover over it to see the trend arrow and how many minutes ago the reading was.
 - **Floating widget:** a small always-on-top box showing `6.4 → 3m` that you can drag anywhere.
 
 Click either one to open a **zoomable 48-hour graph** showing your readings, insulin and carbs. Readings can be shown in **mmol/L or mg/dL**.
 
 The app gets your readings by itself, from either of two places:
-- **xDrip Cloud Sync**, like a follower phone. No Nightscout is needed.
+- **xDrip+ Cloud Sync**, like a follower phone. No Nightscout is needed.
 - **Your Nightscout site.**
 
 You don't need Python or anything else installed.
 
-*xDrip used to be called xDrip+. Depending on your version of the app, the menu names below may still show the +, e.g. "xDrip+ Sync Settings".*
-
-> **Not a medical device.** This is a convenience display. Don't base treatment decisions on it, and rely on xDrip itself for alarms. Readings can be late, missing or wrong.
+> **Not a medical device.** This is a convenience display. Don't base treatment decisions on it, and rely on xDrip+ itself for alarms. Readings can be late, missing or wrong.
 
 ## 1. Download
 
-1. Go to the [Releases page](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) and open the newest **xDrip Tray for Windows** release.
+1. Go to the [Releases page](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases) and open the newest **xDrip+ Tray for Windows** release.
 2. Download **`xDripTray.exe`**.
 3. Put it somewhere permanent, for example a new folder `C:\Users\<you>\Apps\xDripTray\`. It's a single file, so there's no installer.
 
@@ -35,7 +33,7 @@ Get-FileHash .\xDripTray.exe -Algorithm SHA256
 
 ## 2a. Using Nightscout?
 
-Skip section 2b if your readings are on a Nightscout site, for example because your phone isn't an xDrip master and everything is uploaded to Nightscout.
+Skip section 2b if your readings are on a Nightscout site, for example because your phone isn't an xDrip+ master and everything is uploaded to Nightscout.
 1. **Make a read-only token** (recommended): open your Nightscout site › **Admin Tools** › **Add new Subject**. Give it the role **readable**, save it, and copy the token shown next to it. It looks like `topbar-1a2b3c4d5e6f7a8b`. Your API secret works too, but a read-only token can't change anything and is easy to revoke.
 2. **Enter it in the app:** run `xDripTray.exe`. In Settings › **Collector**, choose **Read readings from: Nightscout**.
 3. Enter your site address, e.g. `https://mysite.example.com`, and click **Apply address**.
@@ -43,16 +41,16 @@ Skip section 2b if your readings are on a Nightscout site, for example because y
 
 The app checks for new readings every minute, and for insulin, carbs and finger-sticks every 5 minutes. It only reads from Nightscout and never writes to it. The token is kept in Windows Credential Manager.
 
-## 2b. Get your sync key (xDrip Cloud Sync)
+## 2b. Get your sync key (xDrip+ Cloud Sync)
 
 Do all of this on your **master** phone, the one connected to the sensor.
 
-**First, check sync is on:** in xDrip, go to **Settings › xDrip Sync Settings**. Make sure **Be master for followers** and **Use xDrip Cloud** are both ticked. If you can't find xDrip Sync Settings, look under **Less Common Settings**.
+**First, check sync is on:** in xDrip+, go to **Settings › xDrip+ Sync Settings**. Make sure **Be master for followers** and **Use xDrip+ Cloud** are both ticked. If you can't find xDrip+ Sync Settings, look under **Less Common Settings**.
 
 Run `xDripTray.exe`. The Settings window opens by itself the first time. On the **Collector** tab, use any one of these three ways:
 
 ### A. QR code screenshot (easiest)
-1. In xDrip, go to **Settings › Show Settings QR codes**, near the bottom, and choose **xDrip security key settings only**.
+1. In xDrip+, go to **Settings › Show Settings QR codes**, near the bottom, and choose **xDrip+ security key settings only**.
 2. Take a screenshot and copy it to your PC.
 3. Click **QR screenshot…** and choose the image.
 4. **Delete the screenshot afterwards.** It contains your key.
@@ -64,7 +62,7 @@ Run `xDripTray.exe`. The Settings window opens by itself the first time. On the 
 4. Paste it into the key box and click **Save key**. The app takes the key out of the text by itself.
 
 ### C. Type the key
-1. In xDrip, go to **Settings › xDrip Sync Settings › Handset Group Security Sync Key**.
+1. In xDrip+, go to **Settings › xDrip+ Sync Settings › Handset Group Security Sync Key**.
 2. Copy it into the key box and click **Save key**.
 
 The key is stored in **Windows Credential Manager**, under the name `xdrip-topbar`. It's never shown again and never saved in a plain file. Anyone with your key can read your glucose data, so treat it like a password.
@@ -86,9 +84,9 @@ To keep the tray icon visible all the time, go to **Windows Settings › Persona
 The Settings window is available from the tray or widget menu.
 
 **Collector tab**
-- **Read readings from:** xDrip Cloud Sync or Nightscout. Each one shows its own settings below the choice.
+- **Read readings from:** xDrip+ Cloud Sync or Nightscout. Each one shows its own settings below the choice.
 - **Sync key:** paste the key, load a QR screenshot, or remove the saved key.
-- **Active:** off by default (passive), so the app only listens and sends nothing. When on, the app shows up in xDrip's **System status › Followers** list under the name you set, `gnome_info_collector` by default.
+- **Active:** off by default (passive), so the app only listens and sends nothing. When on, the app shows up in xDrip+'s **System status › Followers** list under the name you set, `gnome_info_collector` by default.
 - **Data folder:** where your readings are kept.
 - **Start with Windows:** starts the app when you log in.
 
@@ -126,7 +124,7 @@ The Settings window is available from the tray or widget menu.
 
 | Problem | What to check |
 |---|---|
-| Shows `--` and never a reading | **Use xDrip Cloud** must be on, on the master phone. Re-save the key, and use option A or B if unsure. Then look at `collector.log` in the data folder, which is reachable from the tray menu › Open data folder. |
+| Shows `--` and never a reading | **Use xDrip+ Cloud** must be on, on the master phone. Re-save the key, and use option A or B if unsure. Then look at `collector.log` in the data folder, which is reachable from the tray menu › Open data folder. |
 | "could not decode … sync key mismatch?" in the log | Wrong key. Copy it again from the master phone. |
 | "Nightscout refused access (HTTP 401)" | The token or API secret is wrong, or your site needs one and none is saved. Make a new token with the **readable** role. |
 | "Nightscout answered HTTP …" or can't be reached | Check the address opens in a browser, and that it starts with `https://`. |
@@ -136,7 +134,7 @@ The Settings window is available from the tray or widget menu.
 
 ## Privacy
 
-- **Passive mode (the default):** the app sends nothing to your xDrip group. It only makes the connection and sends the acknowledgements the Cloud Sync protocol needs.
+- **Passive mode (the default):** the app sends nothing to your xDrip+ group. It only makes the connection and sends the acknowledgements the Cloud Sync protocol needs.
 - **Nightscout:** the app only reads from your site and never writes to it.
 - **Your data:** readings stay in your data folder. Nothing is uploaded anywhere else.
 - **Your key and token:** they're only in Windows Credential Manager.

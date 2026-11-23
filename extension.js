@@ -1,4 +1,4 @@
-// xDrip Top Bar — GNOME Shell 46
+// xDrip+ Top Bar — GNOME Shell 46
 //
 // Top bar:  "6.4 → 3m"  (mmol/L, trend arrow, minutes since the reading), colours from settings.
 // Click:    48 h history graph, as a resizable dropdown or (setting) a separate window.
@@ -152,7 +152,7 @@ class Collector {
 const Indicator = GObject.registerClass(
 class XdripIndicator extends PanelMenu.Button {
     _init(ext) {
-        super._init(0.5, 'xDrip Top Bar', false);
+        super._init(0.5, 'xDrip+ Top Bar', false);
         this._ext = ext;
         this._settings = ext.getSettings();
         this._latest = null;
@@ -395,7 +395,7 @@ class XdripIndicator extends PanelMenu.Button {
                     this._winProc = null;
             });
         } catch (e) {
-            Main.notifyError('xDrip Top Bar', `Could not open the history window: ${e.message}`);
+            Main.notifyError('xDrip+ Top Bar', `Could not open the history window: ${e.message}`);
         }
     }
 

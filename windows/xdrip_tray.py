@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-xDrip Tray for Windows: the Windows version of the xDrip GNOME top-bar extension.
+xDrip+ Tray for Windows: the Windows version of the xDrip+ GNOME top-bar extension.
 
   * Tray icon showing the latest reading (number in the range colour); hover for arrow and minutes
   * Optional small always-on-top widget "6.4 → 3m" you can drag anywhere
   * Click either one for the zoomable 48-hour graph (mouse wheel zoom, Shift+wheel moves in time,
     middle click shows all 48 hours)
-  * Built-in collector following xDrip Cloud Sync, passive by default
+  * Built-in collector following xDrip+ Cloud Sync, passive by default
   * Sync key kept in Windows Credential Manager; paste the key or the scanned QR text, or load a
-    screenshot of the xDrip QR code
+    screenshot of the xDrip+ QR code
 
 Settings:  %APPDATA%\\xdrip-topbar\\settings.json      Data:  %LOCALAPPDATA%\\xdrip-topbar (changeable)
 
-Not a medical device. Rely on xDrip for alarms.
+Not a medical device. Rely on xDrip+ for alarms.
 """
 
 import base64
@@ -34,8 +34,8 @@ for p in (HERE, os.path.join(HERE, "..", "collector")):
 import xdrip_gnome_collector as col      # noqa: E402  (shared with the GNOME extension)
 import graph                              # noqa: E402
 
-APP_NAME = "xDrip Tray"
-VERSION = "1.1.1"
+APP_NAME = "xDrip+ Tray"
+VERSION = "1.1.2"
 KEYRING_SERVICE = "xdrip-topbar"
 KEYRING_USER = "sync-key"
 KEYRING_NS_USER = "nightscout-secret"      # Nightscout access token or API secret (added in 1.1.0)
@@ -171,7 +171,7 @@ def clear_key():
 
 
 def sync_key_from_qr_text(text):
-    """The text of xDrip's 'xDrip security key settings only' QR code -> the sync key.
+    """The text of xDrip+'s 'xDrip+ security key settings only' QR code -> the sync key.
     Returns None if the text is not a QR export (then it is the key itself)."""
     text = (text or "").strip()
     if text.startswith("xdpref:"):
@@ -193,12 +193,12 @@ def sync_key_from_qr_text(text):
         return None
     key = prefs.get("custom_sync_key")
     if not key:
-        raise ValueError("this QR code has no sync key in it - use 'xDrip security key settings only'")
+        raise ValueError("this QR code has no sync key in it - use 'xDrip+ security key settings only'")
     return str(key).strip()
 
 
 def qr_text_from_image(path):
-    """Reads an xDrip QR code from a screenshot (needs the zxing-cpp package)."""
+    """Reads an xDrip+ QR code from a screenshot (needs the zxing-cpp package)."""
     import zxingcpp
     from PIL import Image
     for r in zxingcpp.read_barcodes(Image.open(path).convert("RGB")):
@@ -629,7 +629,7 @@ class GraphWindow:
         self.app = app
         app.view = {"span_hours": float(app.settings["graph_hours"]), "offset_ms": 0}
         self.top = tk.Toplevel(app.root)
-        self.top.title("xDrip — last 48 hours")
+        self.top.title("xDrip+ — last 48 hours")
         self.top.configure(bg="#1c1c1f")
         self.top.minsize(320, 160)
         try:
@@ -720,17 +720,17 @@ class SettingsWindow:
         srcrow.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
         ttk.Label(srcrow, text="Read readings from:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 8))
         self.src_var = tk.StringVar(value=s["data_source"])
-        for val, text in (("xdrip-cloud", "xDrip Cloud Sync"), ("nightscout", "Nightscout")):
+        for val, text in (("xdrip-cloud", "xDrip+ Cloud Sync"), ("nightscout", "Nightscout")):
             ttk.Radiobutton(srcrow, text=text, value=val, variable=self.src_var,
                             command=self.change_source).pack(side="left", padx=4)
 
-        # xDrip Cloud Sync
-        xf = self.xdrip_frame = ttk.LabelFrame(c, text="xDrip Cloud Sync", padding=8)
+        # xDrip+ Cloud Sync
+        xf = self.xdrip_frame = ttk.LabelFrame(c, text="xDrip+ Cloud Sync", padding=8)
         xf.grid(row=1, column=0, columnspan=3, sticky="we")
         ttk.Label(xf, wraplength=460, justify="left", text=(
-            "On your master phone: xDrip › Settings › xDrip Sync Settings, tick \"Use xDrip Cloud\". "
+            "On your master phone: xDrip+ › Settings › xDrip+ Sync Settings, tick \"Use xDrip+ Cloud\". "
             "Then paste the Handset Group Security Sync Key below, or the text from scanning "
-            "Settings › Show Settings QR codes › xDrip security key settings only (starts with xdpref:), "
+            "Settings › Show Settings QR codes › xDrip+ security key settings only (starts with xdpref:), "
             "or load a screenshot of that QR code. The key is kept in Windows Credential Manager.")
         ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
         self.key_var = tk.StringVar()
@@ -740,9 +740,9 @@ class SettingsWindow:
         self.key_status = ttk.Label(xf, text="")
         self.key_status.grid(row=2, column=0, sticky="w", pady=4)
         ttk.Button(xf, text="Remove key", command=self.remove_key).grid(row=2, column=1, columnspan=2, sticky="e")
-        self.active = self._check(xf, "Active: appear in xDrip followers list (default: passive, sends nothing)",
+        self.active = self._check(xf, "Active: appear in xDrip+ followers list (default: passive, sends nothing)",
                                   "active", 3, restart=True)
-        ttk.Label(xf, text="Name shown in xDrip when active").grid(row=4, column=0, sticky="w")
+        ttk.Label(xf, text="Name shown in xDrip+ when active").grid(row=4, column=0, sticky="w")
         self.name_var = tk.StringVar(value=s["rollcall_name"])
         ttk.Entry(xf, textvariable=self.name_var, width=24).grid(row=4, column=1, sticky="we")
         ttk.Button(xf, text="Apply name", command=self.apply_name).grid(row=4, column=2, sticky="e")
@@ -836,7 +836,7 @@ class SettingsWindow:
                    command=lambda: app.set_view({"span_hours": 48.0, "offset_ms": 0})).grid(row=7, column=0, sticky="w", pady=8)
         ttk.Label(g, text="On the graph: mouse wheel zooms (remembered), Shift + wheel moves back and forward in time, "
                           "middle click shows all 48 hours.", wraplength=460, foreground="#555").grid(row=8, column=0, columnspan=3, sticky="w")
-        ttk.Label(top, text="%s %s · Not a medical device: rely on xDrip for alarms." % (APP_NAME, VERSION),
+        ttk.Label(top, text="%s %s · Not a medical device: rely on xDrip+ for alarms." % (APP_NAME, VERSION),
                   foreground="#777").pack(pady=(0, 8))
         self._key_status()
 
@@ -1015,7 +1015,7 @@ class SettingsWindow:
         except Exception as e:
             messagebox.showerror(APP_NAME, "Could not save to Credential Manager: %s" % e, parent=self.top)
             return
-        warn = "\n\nWarning: xDrip keys are usually longer than 16 characters." if len(key) <= 16 else ""
+        warn = "\n\nWarning: xDrip+ keys are usually longer than 16 characters." if len(key) <= 16 else ""
         messagebox.showinfo(APP_NAME, "Sync key saved.%s" % warn, parent=self.top)
         self.app.collector.restart()
         self._key_status()
@@ -1027,7 +1027,7 @@ class SettingsWindow:
 
     def load_qr(self):
         from tkinter import filedialog, messagebox
-        path = filedialog.askopenfilename(parent=self.top, title="Screenshot of the xDrip QR code",
+        path = filedialog.askopenfilename(parent=self.top, title="Screenshot of the xDrip+ QR code",
                                           filetypes=[("Images", "*.png *.jpg *.jpeg *.bmp *.webp"), ("All", "*.*")])
         if not path:
             return
@@ -1040,7 +1040,7 @@ class SettingsWindow:
             messagebox.showerror(APP_NAME, "Could not read the image: %s" % e, parent=self.top)
             return
         if not text:
-            messagebox.showerror(APP_NAME, "No xDrip settings QR code found in that image.", parent=self.top)
+            messagebox.showerror(APP_NAME, "No xDrip+ settings QR code found in that image.", parent=self.top)
             return
         self._use_text(text)
         messagebox.showinfo(APP_NAME, "Remember to delete the screenshot - it contains your key.", parent=self.top)

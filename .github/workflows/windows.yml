@@ -124,17 +124,17 @@ jobs:
           fi
           (cd dist && sha256sum xDripTray.exe > xDripTray.exe.sha256)
           cat > notes.md <<NOTES
-          Windows tray app + floating widget for xDrip Cloud Sync, version ${version}.
+          Windows tray app + floating widget for xDrip+ Cloud Sync, version ${version}.
 
           Download **xDripTray.exe** and follow [the Windows instructions](https://github.com/${{ github.repository }}/blob/windows/windows/README.md).
 
           **Check the download:** this .exe was built by GitHub Actions from commit ${{ github.sha }} of this repository. GitHub has signed a record of that build, and you can verify it with \`gh attestation verify xDripTray.exe --repo ${{ github.repository }}\`, or compare the SHA-256 with \`xDripTray.exe.sha256\`. ${SIGNED_NOTE}
 
-          Not a medical device: rely on xDrip for alarms.
+          Not a medical device: rely on xDrip+ for alarms.
           NOTES
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" dist/xDripTray.exe dist/xDripTray.exe.sha256 --clobber
           else
             gh release create "$tag" dist/xDripTray.exe dist/xDripTray.exe.sha256 \
-              --target "${{ github.sha }}" --title "xDrip Tray for Windows ${version}" --notes-file notes.md
+              --target "${{ github.sha }}" --title "xDrip+ Tray for Windows ${version}" --notes-file notes.md
           fi

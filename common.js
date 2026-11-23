@@ -12,7 +12,7 @@ export const ARROWS = {
     FortyFiveDown: '↘', SingleDown: '↓', DoubleDown: '⇊', NotComputable: '?',
 };
 
-// Same thresholds as xDrip BgReading.getSlopeOrdinal(), used when a reading has no trend name.
+// Same thresholds as xDrip+ BgReading.getSlopeOrdinal(), used when a reading has no trend name.
 export function trendFromSlope(slopePerMin) {
     if (slopePerMin === undefined || slopePerMin === null) return 'NotComputable';
     if (slopePerMin <= -3.5) return 'DoubleDown';
@@ -260,7 +260,7 @@ function fmtSpan(hours) {
 }
 
 /**
- * Draws the history in the style of the xDrip main graph: line and/or dots coloured by range,
+ * Draws the history in the style of the xDrip+ main graph: line and/or dots coloured by range,
  * shaded target band, insulin (blue ▼) and carbs (orange ●) markers.
  *   history: parsed history.json (or null)    opts: graphOptions(settings)
  *   view: {spanHours, offsetMs} (default: the whole 48 h ending now)
@@ -414,7 +414,7 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
         cr.fill();
     }
 
-    // treatments: like xDrip, placed on the glucose line with the amount written next to it
+    // treatments: like xDrip+, placed on the glucose line with the amount written next to it
     cr.setFontSize(fs * 0.9);
     for (const t of treatments) {
         const x = X(Math.min(t.t, nowMs));
@@ -464,9 +464,9 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     text(cr, `${fmtSpan(v0.spanHours)}${where} · ${unitLabel(opts.units)}`, w - padR, fs * 1.35, 'right');
 }
 
-// ---------------------------------------------------------------- xDrip settings QR code
+// ---------------------------------------------------------------- xDrip+ settings QR code
 /**
- * Pulls the sync key out of the text of xDrip's "Show Settings QR codes" › "xDrip security key
+ * Pulls the sync key out of the text of xDrip+'s "Show Settings QR codes" › "xDrip+ security key
  * settings only" code: 'xdpref:' + base64 of zlib-compressed JSON, or the binary 'xdp2:' variant.
  * Returns the key, or null if the text is not a QR export (then it is treated as the key itself).
  * Throws if it is a QR export without a sync key in it.
@@ -509,6 +509,6 @@ export function syncKeyFromQrText(text) {
     }
     const key = prefs.custom_sync_key;
     if (!key)
-        throw new Error('this QR code has no sync key in it — use “xDrip security key settings only”');
+        throw new Error('this QR code has no sync key in it — use “xDrip+ security key settings only”');
     return String(key).trim();
 }

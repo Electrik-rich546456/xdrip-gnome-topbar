@@ -1,14 +1,14 @@
-// The xDrip sync key (and the Nightscout token / API secret) live in the GNOME Keyring (libsecret), never in GSettings or on a command line.
+// The xDrip+ sync key (and the Nightscout token / API secret) live in the GNOME Keyring (libsecret), never in GSettings or on a command line.
 import Secret from 'gi://Secret';
 
 export const KEY_SCHEMA = new Secret.Schema('org.local.xdrip-topbar.SyncKey', Secret.SchemaFlags.NONE, {
     purpose: Secret.SchemaAttributeType.STRING,
 });
 export const KEY_ATTRS = {purpose: 'xdrip-sync-key'};
-export const KEY_LABEL = 'xDrip sync key (xDrip Top Bar extension)';
+export const KEY_LABEL = 'xDrip+ sync key (xDrip+ Top Bar extension)';
 // Nightscout uses the same schema with its own attribute value (added later, nothing above changes)
 export const NS_ATTRS = {purpose: 'nightscout-secret'};
-export const NS_LABEL = 'Nightscout token or API secret (xDrip Top Bar extension)';
+export const NS_LABEL = 'Nightscout token or API secret (xDrip+ Top Bar extension)';
 
 /** callback(key or null) */
 export function lookupKey(callback, attrs = KEY_ATTRS) {
