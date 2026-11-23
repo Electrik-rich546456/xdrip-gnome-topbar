@@ -35,7 +35,7 @@ import xdrip_gnome_collector as col      # noqa: E402  (shared with the GNOME ex
 import graph                              # noqa: E402
 
 APP_NAME = "xDrip+ Tray"
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 KEYRING_SERVICE = "xdrip-topbar"
 KEYRING_USER = "sync-key"
 KEYRING_NS_USER = "nightscout-secret"      # Nightscout access token or API secret (added in 1.1.0)
@@ -918,6 +918,11 @@ class SettingsWindow:
         ttk.Label(g, text="On the graph: mouse wheel zooms (remembered); drag, or Shift + wheel, moves back and forward "
                           "in time; middle click shows all 48 hours; click a reading, insulin, carbs or finger-stick to "
                           "see its exact time.", wraplength=460, foreground="#555").grid(row=9, column=0, columnspan=3, sticky="w")
+        # ---------------- about
+        a = ttk.Frame(nb, padding=14)
+        nb.add(a, text="About")
+        self._about(a)
+
         ttk.Label(top, text="%s %s · Not a medical device: rely on xDrip+ for alarms." % (APP_NAME, VERSION),
                   foreground="#777").pack(pady=(0, 8))
         self._key_status()
@@ -979,6 +984,46 @@ class SettingsWindow:
         btn.configure(command=pick)
         btn.grid(row=row, column=column, padx=4, pady=2)
         return btn
+
+    def _about(self, a):
+        import webbrowser
+        tk, ttk = self.tk, self.ttk
+        repo = "https://github.com/Electrik-rich546456/xdrip-gnome-topbar"
+        ttk.Label(a, text=APP_NAME, font=("Segoe UI", 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(a, text="Version %s" % VERSION, foreground="#555").grid(row=1, column=0, columnspan=2, sticky="w")
+        ttk.Label(a, wraplength=470, justify="left", text=(
+            "Your latest xDrip+ glucose reading in the Windows tray and a floating widget, with a zoomable "
+            "48-hour graph. Reads from xDrip+ Cloud Sync or a Nightscout site.")
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 10))
+
+        details = (("Version", VERSION),
+                   ("Settings file", SETTINGS_PATH),
+                   ("Data folder", self.app.settings.data_dir()),
+                   ("Sync key / token", "Windows Credential Manager › xdrip-topbar"),
+                   ("Licence", "GNU General Public License v3.0"))
+        for i, (k, v) in enumerate(details):
+            ttk.Label(a, text=k, foreground="#555").grid(row=3 + i, column=0, sticky="nw", padx=(0, 12))
+            e = ttk.Entry(a, width=52)                       # read-only but selectable, so paths can be copied
+            e.insert(0, v)
+            e.configure(state="readonly")
+            e.grid(row=3 + i, column=1, sticky="we", pady=1)
+
+        def link(row, text, url):
+            lab = tk.Label(a, text=text, fg="#0b62c4", cursor="hand2", font=("Segoe UI", 9, "underline"))
+            lab.grid(row=row, column=0, columnspan=2, sticky="w", pady=1)
+            lab.bind("<Button-1>", lambda e: webbrowser.open(url))
+        ttk.Label(a, text="Links", font=("Segoe UI", 10, "bold")).grid(row=9, column=0, columnspan=2, sticky="w", pady=(12, 2))
+        link(10, "Instructions and source code", repo + "/blob/windows/README.md")
+        link(11, "Releases: check for a newer version", repo + "/releases?q=windows&expanded=true")
+        link(12, "Report a problem or suggest something (GitHub issues)", repo + "/issues")
+        link(13, "Ubuntu / Linux version (xDrip+ Top Bar)", repo)
+        link(14, "xDrip+ (NightscoutFoundation/xDrip)", "https://github.com/NightscoutFoundation/xDrip")
+        ttk.Label(a, wraplength=470, justify="left", foreground="#555", text=(
+            "Made by Electrik-rich546456. Cloud Sync details come from the open-source xDrip+ app (GPL-3.0). "
+            "Not affiliated with the xDrip+ or Nightscout projects.\n\n"
+            "Not a medical device. This is a convenience display: don't base treatment decisions on it, and rely on "
+            "xDrip+ itself for alarms. Readings can be late, missing or wrong.")
+        ).grid(row=15, column=0, columnspan=2, sticky="w", pady=(12, 0))
 
     def _limit(self, parent, text, key, row, lo_mmol, hi_mmol, row_offset=0):
         """A limit shown and edited in the chosen units (stored in mmol/L)."""
@@ -1397,6 +1442,7 @@ def screenshots(out_dir):
     step(back, 300)
     tab(1, "settings-display.png")
     tab(2, "settings-graph.png")
+    tab(3, "settings-about.png")
 
     root.after(800, run_next)
     root.mainloop()

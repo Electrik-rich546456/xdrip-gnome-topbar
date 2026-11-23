@@ -44,6 +44,10 @@ You don't need Python or anything else installed.
 |---|---|
 | ![Display settings](docs/screenshots/windows/settings-display.png) | ![Graph settings](docs/screenshots/windows/settings-graph.png) |
 
+| Settings: About |
+|---|
+| ![About](docs/screenshots/windows/settings-about.png) |
+
 ## 1. Download
 
 1. Go to the [Windows releases](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases?q=windows&expanded=true) and open the newest **xDrip+ Tray for Windows** release.
@@ -135,6 +139,9 @@ The Settings window is available from the tray or widget menu.
 - A dot for every reading.
 - Where the line breaks at a gap.
 - Reset zoom.
+
+**About tab**
+- Version, where your settings and data are kept, links to the instructions, new releases and issue reports, and the licence.
 
 ## Where things are stored
 

@@ -7,6 +7,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import * as Config from 'resource:///org/gnome/Shell/Extensions/js/misc/config.js';
 
 import {dataDir, syncKeyFromQrText, fmtGlucose, MGDL_PER_MMOL} from './common.js';
 import {lookupKey, storeKey, clearKey, lookupNsSecret, storeNsSecret, clearNsSecret} from './secret.js';
@@ -70,6 +71,7 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         window.add(this._collectorPage(window, s));
         window.add(this._appearancePage(s));
         window.add(this._historyPage(s));
+        window.add(this._aboutPage(window, s));
     }
 
     // ------------------------------------------------------------------ collector
@@ -418,6 +420,65 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         staleColor.add_suffix(colorButton(s, 'stale-color'));
         stale.add(staleColor);
         page.add(stale);
+        return page;
+    }
+
+    // ------------------------------------------------------------------ about
+    _aboutPage(window, s) {
+        const REPO = 'https://github.com/Electrik-rich546456/xdrip-gnome-topbar';
+        const page = new Adw.PreferencesPage({title: 'About', icon_name: 'help-about-symbolic'});
+
+        const head = new Adw.PreferencesGroup();
+        const box = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, spacing: 6, margin_top: 12, margin_bottom: 6});
+        box.append(new Gtk.Image({icon_name: 'utilities-system-monitor-symbolic', pixel_size: 64}));
+        box.append(new Gtk.Label({label: this.metadata.name ?? 'xDrip+ Top Bar', css_classes: ['title-1']}));
+        box.append(new Gtk.Label({label: `Version v${this.metadata.version}`, css_classes: ['dim-label']}));
+        box.append(new Gtk.Label({
+            label: 'Your latest xDrip+ glucose reading in the GNOME top bar, with a zoomable 48-hour graph. ' +
+                'Reads from xDrip+ Cloud Sync or a Nightscout site.',
+            wrap: true, justify: Gtk.Justification.CENTER, max_width_chars: 60,
+        }));
+        head.add(box);
+        page.add(head);
+
+        const info = new Adw.PreferencesGroup({title: 'Details'});
+        const row = (title, subtitle) => {
+            const r = new Adw.ActionRow({title, subtitle, subtitle_selectable: true});
+            info.add(r);
+            return r;
+        };
+        row('Version', `v${this.metadata.version}`);
+        row('GNOME Shell', `made for ${(this.metadata['shell-version'] ?? []).join(', ')}, running ${Config.PACKAGE_VERSION}`);
+        row('Extension ID', this.metadata.uuid);
+        row('Data folder', dataDir(s));
+        row('Licence', 'GNU General Public License v3.0');
+        page.add(info);
+
+        const links = new Adw.PreferencesGroup({title: 'Links'});
+        const link = (title, subtitle, uri) => {
+            const r = new Adw.ActionRow({title, subtitle, activatable: true});
+            r.add_suffix(new Gtk.Image({icon_name: 'adw-external-link-symbolic'}));
+            r.connect('activated', () => Gtk.show_uri(window, uri, 0));
+            links.add(r);
+        };
+        link('Source code and instructions', REPO, REPO);
+        link('Releases and downloads', 'New versions for Ubuntu and Windows', `${REPO}/releases`);
+        link('Report a problem or suggest something', 'GitHub issues', `${REPO}/issues`);
+        link('Windows version', 'xDrip+ Tray for Windows', `${REPO}/blob/windows/README.md`);
+        page.add(links);
+
+        const credits = new Adw.PreferencesGroup({
+            title: 'Credits',
+            description: 'Made by Electrik-rich546456. Cloud Sync details come from the open-source xDrip+ app ' +
+                '(NightscoutFoundation/xDrip, GPL-3.0). Not affiliated with the xDrip+ or Nightscout projects.\n\n' +
+                'Not a medical device. This is a convenience display: don’t base treatment decisions on it, and rely ' +
+                'on xDrip+ itself for alarms. Readings can be late, missing or wrong.',
+        });
+        const xd = new Adw.ActionRow({title: 'xDrip+', subtitle: 'github.com/NightscoutFoundation/xDrip', activatable: true});
+        xd.add_suffix(new Gtk.Image({icon_name: 'adw-external-link-symbolic'}));
+        xd.connect('activated', () => Gtk.show_uri(window, 'https://github.com/NightscoutFoundation/xDrip', 0));
+        credits.add(xd);
+        page.add(credits);
         return page;
     }
 
