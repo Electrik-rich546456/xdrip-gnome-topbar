@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-xDrip+ top-bar collector (started and stopped by the GNOME extension "xDrip+ Top Bar").
+xDrip top-bar collector (started and stopped by the GNOME extension "xDrip Top Bar").
 
-Joins the xDrip+ Cloud Sync group like one more follower phone and keeps two small files in
+Joins the xDrip Cloud Sync group like one more follower phone and keeps two small files in
 the data folder chosen in the extension's settings:
 
   latest.json    newest glucose reading + collector status (read by the top bar)
@@ -10,7 +10,7 @@ the data folder chosen in the extension's settings:
 
 PASSIVE by default: it only listens and sends nothing, so it does not appear on the phone.
 With --active it sends the battery + roll-call requests a follower phone sends and shows up in
-xDrip+ "System status > Followers" under --name (default gnome_info_collector).
+xDrip "System status > Followers" under --name (default gnome_info_collector).
 
 The sync key is read from the first line of standard input (--key-stdin, what the extension
 does) or from the environment variable XDRIP_SYNC_KEY.  It is never printed or written to disk.
@@ -22,7 +22,11 @@ Needs: python3 and the 'cryptography' package.
 """
 
 import argparse
-import fcntl
+try:
+    import fcntl                     # Linux / macOS
+except ImportError:                  # Windows
+    fcntl = None
+    import msvcrt
 import gzip
 import hashlib
 import json
@@ -35,10 +39,13 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import zlib
 
 # ----------------------------------------------------------------------------
-# Constants taken from the xDrip+ source (same as xdrip_cloud_follow_v3)
+# Constants taken from the xDrip source (same as xdrip_cloud_follow_v3)
 # ----------------------------------------------------------------------------
 SERVER = "jamcm3749021.bluejay.website"
 PORT = 25935
@@ -309,7 +316,14 @@ def write_json_atomic(path, doc):
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(doc, fh, separators=(",", ":"))
-        os.replace(tmp, path)
+        for attempt in range(10):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:          # Windows: the file is open in another program for a moment
+                if attempt == 9:
+                    raise
+                time.sleep(0.1)
     except BaseException:
         try:
             os.unlink(tmp)
@@ -319,13 +333,14 @@ def write_json_atomic(path, doc):
 
 
 class Store:
-    def __init__(self, folder, active, name, now=time.time):
+    def __init__(self, folder, active, name, now=time.time, source="xdrip-cloud"):
         self.folder = folder
         self.now = now
         self.latest_path = os.path.join(folder, "latest.json")
         self.history_path = os.path.join(folder, "history.json")
         self.readings, self.treatments, self.bloodtests = {}, {}, {}
-        self.status = {"connected": False, "active": bool(active), "name": name if active else None,
+        self.status = {"connected": False, "source": source,
+                       "active": bool(active), "name": name if active else None,
                        "started_ms": self._now_ms(), "last_message_ms": None, "pid": os.getpid(),
                        "problem": None}
         self._load()
@@ -372,6 +387,15 @@ class Store:
                   "previous": readings[-2] if len(readings) > 1 else None}
         write_json_atomic(self.latest_path, latest)
 
+    def replace_treatments(self, treatments):
+        """Nightscout: the full list for the last 48 h (so deletions disappear too)."""
+        new = {t["id"]: t for t in treatments}
+        if new != self.treatments:
+            self.treatments = new
+            self.save()
+            return True
+        return False
+
     def set_status(self, **kw):
         changed = any(self.status.get(k) != v for k, v in kw.items())
         self.status.update(kw)
@@ -410,7 +434,7 @@ class Store:
                 self.treatments.clear()
                 changed = True
         # a write at least every few minutes keeps last_message_ms fresh in latest.json
-        if changed or a in ("bgs", "bgmm"):
+        if changed or a in ("bgs", "bgmm", "ns"):
             self.save()
         return changed
 
@@ -462,6 +486,17 @@ class Follower:
         self.on_event, self.on_status = on_event, on_status
         self.passive, self.name = passive, name
         self.stop = threading.Event()
+        self.sock = None
+
+    def shutdown(self):
+        """Stop from another thread: ends run() within a moment instead of at the next timeout."""
+        self.stop.set()
+        s = self.sock
+        if s is not None:
+            try:
+                s.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
 
     def run(self):
         backoff = 5
@@ -484,6 +519,7 @@ class Follower:
         log("connecting to %s:%d" % (self.host, self.port))
         sock = socket.create_connection((self.host, self.port), timeout=45)
         sock.settimeout(WAIT_PING_TIMEOUT_S)
+        self.sock = sock
         ls = LineSocket(sock)
         try:
             ls.send("%s\n%s\n%s\n" % (SUPPORTED_VERSIONS, self.token, self.topic))
@@ -509,6 +545,7 @@ class Follower:
                 last_heard = time.monotonic()
                 self._handle(ls, line)
         finally:
+            self.sock = None
             try:
                 sock.close()
             except OSError:
@@ -541,6 +578,159 @@ class Follower:
 
 
 # ----------------------------------------------------------------------------
+# Nightscout (alternative data source: read-only REST API v1)
+# ----------------------------------------------------------------------------
+NS_TRENDS = {"DoubleUp", "SingleUp", "FortyFiveUp", "Flat", "FortyFiveDown", "SingleDown", "DoubleDown"}
+NS_POLL_S = 60                      # new readings are checked every minute
+NS_SLOW_S = 300                     # treatments and finger-sticks every 5 minutes
+
+
+def _ms_from_iso(text):
+    import datetime
+    t = str(text).strip().replace("Z", "+00:00")
+    d = datetime.datetime.fromisoformat(t)
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=datetime.timezone.utc)
+    return int(d.timestamp() * 1000)
+
+
+def _iso_from_ms(ms):
+    import datetime
+    return datetime.datetime.fromtimestamp(ms / 1000, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def ns_reading(e):
+    """Nightscout sgv entry -> reading dict, or None."""
+    sgv, t = e.get("sgv"), e.get("date")
+    try:
+        sgv, t = float(sgv), int(t)
+    except (TypeError, ValueError):
+        return None
+    if sgv < 39:                                     # values below 39 are sensor error codes
+        return None
+    slope = None
+    if e.get("delta") is not None:
+        slope = _num(e.get("delta")) / 5.0           # mg/dL per 5 min -> per minute
+    trend = e.get("direction")
+    if trend not in NS_TRENDS:
+        trend = TREND_NAMES[trend_ordinal(slope, False)] if slope is not None else "NotComputable"
+    return {"t": t, "mgdl": round(sgv, 1), "mmol": round(sgv / MGDL_PER_MMOL, 2),
+            "slope": round(slope, 3) if slope is not None else 0.0, "trend": trend}
+
+
+def ns_treatment(t):
+    insulin, carbs = _num(t.get("insulin")), _num(t.get("carbs"))
+    if insulin <= 0 and carbs <= 0:
+        return None
+    when = t.get("mills") or t.get("date")
+    try:
+        when = int(when) if when else _ms_from_iso(t.get("created_at") or t.get("timestamp"))
+    except (TypeError, ValueError):
+        return None
+    tid = str(t.get("_id") or t.get("identifier") or "%s|%s|%s" % (when, insulin, carbs))
+    return {"id": tid, "t": when, "insulin": insulin, "carbs": carbs, "insulin_detail": "",
+            "notes": str(t.get("notes") or t.get("eventType") or "").replace("\n", " ")[:200]}
+
+
+class NightscoutFollower:
+    """Polls a Nightscout site.  secret: an access token (recommended, read-only role) or the
+    API_SECRET; both are tried automatically.  Leave empty for a site that is readable without one."""
+
+    def __init__(self, url, secret, on_event, on_status, on_treatments, poll_s=NS_POLL_S, slow_s=NS_SLOW_S,
+                 now=time.time):
+        url = (url or "").strip().rstrip("/")
+        if url and "://" not in url:
+            url = "https://" + url
+        self.base = url
+        self.secret = (secret or "").strip()
+        self.on_event, self.on_status, self.on_treatments = on_event, on_status, on_treatments
+        self.poll_s, self.slow_s, self.now = poll_s, slow_s, now
+        self.stop = threading.Event()
+        self.mode = None                             # "token" | "secret" | "none", found on first success
+
+    def shutdown(self):
+        self.stop.set()
+
+    def _get(self, path, params):
+        modes = [self.mode] if self.mode else (["token", "secret"] if self.secret else ["none"])
+        refused = None
+        for mode in modes:
+            q = dict(params)
+            headers = {"Accept": "application/json", "User-Agent": "xdrip-topbar-collector"}
+            if mode == "token":
+                q["token"] = self.secret
+            elif mode == "secret":
+                headers["api-secret"] = hashlib.sha1(self.secret.encode("utf-8")).hexdigest()
+            req = urllib.request.Request(self.base + path + "?" + urllib.parse.urlencode(q), headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    data = json.loads(r.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403):
+                    refused = PermissionError("Nightscout refused access (HTTP %d) - check the token or API secret"
+                                              % e.code)
+                    continue
+                raise ConnectionError("Nightscout answered HTTP %d" % e.code)
+            if self.mode != mode:
+                self.mode = mode
+                log("Nightscout: connected (%s)" % {"token": "access token", "secret": "API secret",
+                                                     "none": "no token"}[mode])
+            return data
+        self.mode = None
+        raise refused or ConnectionError("Nightscout could not be reached")
+
+    def run(self):
+        if not self.base:
+            self.on_status(connected=False, problem="no Nightscout address set")
+            return
+        log("Nightscout: polling %s" % self.base)
+        since = None
+        next_slow = 0
+        backoff = self.poll_s
+        while not self.stop.is_set():
+            now = int(self.now() * 1000)
+            start = now - KEEP_MS
+            try:
+                frm = max(start, since) if since else start
+                entries = self._get("/api/v1/entries/sgv.json", {"count": 1000, "find[date][$gte]": frm})
+                readings = [r for r in (ns_reading(e) for e in entries if isinstance(e, dict)) if r]
+                tests = []
+                if time.monotonic() >= next_slow:
+                    for e in self._get("/api/v1/entries/mbg.json", {"count": 200, "find[date][$gte]": start}):
+                        try:
+                            mg = float(e.get("mbg"))
+                            tests.append({"t": int(e.get("date")), "mgdl": round(mg, 1),
+                                          "mmol": round(mg / MGDL_PER_MMOL, 2)})
+                        except (TypeError, ValueError, AttributeError):
+                            pass
+                    tr = self._get("/api/v1/treatments.json",
+                                   {"count": 1000, "find[created_at][$gte]": _iso_from_ms(start)})
+                    self.on_treatments([t for t in (ns_treatment(x) for x in tr if isinstance(x, dict)) if t])
+                    next_slow = time.monotonic() + self.slow_s
+                self.on_status(connected=True, problem=None)
+                self.on_event({"action": "ns", "readings": readings, "bloodtests": tests, "text": None, "json": None})
+                if readings:
+                    since = max(r["t"] for r in readings) - 15 * 60000     # small overlap catches late uploads
+                backoff = self.poll_s
+            except Exception as e:
+                self.on_status(connected=False, problem=str(e)[:120])
+                log("Nightscout problem: %s - retrying in %ds" % (e, backoff))
+                if self.stop.wait(backoff):
+                    break
+                backoff = min(backoff * 2, 600)
+                continue
+            if self.stop.wait(self.poll_s):
+                break
+
+
+# ----------------------------------------------------------------------------
 # Running under the extension
 # ----------------------------------------------------------------------------
 def _is_collector(pid):
@@ -560,7 +750,11 @@ def take_lock(folder, takeover=True):
 
     def try_lock():
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if fcntl is not None:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
             return True
         except OSError:
             return False
@@ -568,7 +762,8 @@ def take_lock(folder, takeover=True):
     if not try_lock():
         old = None
         try:
-            old = int(os.pread(fd, 32, 0).decode().strip() or 0)
+            os.lseek(fd, 0, os.SEEK_SET)
+            old = int(os.read(fd, 32).decode().strip() or 0)
         except (OSError, ValueError):
             pass
         if not takeover or not old or old == os.getpid() or not _is_collector(old):
@@ -592,7 +787,8 @@ def take_lock(folder, takeover=True):
             os.close(fd)
             return None
     os.ftruncate(fd, 0)
-    os.pwrite(fd, str(os.getpid()).encode(), 0)
+    os.lseek(fd, 0, os.SEEK_SET)
+    os.write(fd, str(os.getpid()).encode())
     return fd
 
 
@@ -625,9 +821,13 @@ def get_token(folder):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="xDrip+ collector for the GNOME top-bar extension")
+    ap = argparse.ArgumentParser(description="xDrip collector for the GNOME top-bar extension")
     ap.add_argument("--data-dir", help="folder for latest.json and history.json")
-    ap.add_argument("--key-stdin", action="store_true", help="read the sync key from the first line of stdin")
+    ap.add_argument("--key-stdin", action="store_true",
+                    help="read the sync key (or the Nightscout token / API secret) from the first line of stdin")
+    ap.add_argument("--source", choices=("xdrip-cloud", "nightscout"), default="xdrip-cloud",
+                    help="where the data comes from (default: xDrip Cloud Sync)")
+    ap.add_argument("--ns-url", help="Nightscout address, e.g. https://mysite.example.com")
     ap.add_argument("--active", action="store_true", help="announce in roll call and ask for batteries")
     ap.add_argument("--name", default=DEFAULT_NAME, help="roll-call name when --active (default %(default)s)")
     ap.add_argument("--server", default=SERVER)
@@ -648,9 +848,12 @@ def main():
     if not args.data_dir:
         sys.exit("--data-dir is required")
 
-    key = sys.stdin.readline().strip() if args.key_stdin else os.environ.get("XDRIP_SYNC_KEY", "").strip()
-    if not key:
+    key = sys.stdin.readline().strip() if args.key_stdin else os.environ.get(
+        "XDRIP_SYNC_KEY" if args.source == "xdrip-cloud" else "NIGHTSCOUT_SECRET", "").strip()
+    if args.source == "xdrip-cloud" and not key:
         sys.exit("no sync key given (set it in the extension settings)")
+    if args.source == "nightscout" and not args.ns_url:
+        sys.exit("no Nightscout address given (set it in the extension settings)")
 
     folder = os.path.abspath(os.path.expanduser(args.data_dir))
     os.makedirs(folder, exist_ok=True)
@@ -658,30 +861,45 @@ def main():
     if lock is None:
         sys.exit("another collector is already writing to %s" % folder)
 
-    name = (args.name or DEFAULT_NAME).strip() or DEFAULT_NAME
-    topic, aes_key = derive_keys(key)
-    del key
-    log("sync group id %s...  data folder %s  mode %s" % (topic[:8], folder, "active" if args.active else "passive"))
-
-    store = Store(folder, args.active, name)
     lock_ = threading.Lock()
+    store_box = []
 
     def on_event(ev):
         with lock_:
             try:
-                store.handle(ev)
+                store_box[0].handle(ev)
             except Exception as e:
                 log("could not store message: %s" % e)
 
     def on_status(**kw):
         with lock_:
             try:
-                store.set_status(**kw)
+                store_box[0].set_status(**kw)
             except Exception as e:
                 log("could not write status: %s" % e)
 
-    f = Follower(args.server, args.port, get_token(folder), topic, aes_key, on_event, on_status,
-                 passive=not args.active, name=name)
+    def on_treatments(items):
+        with lock_:
+            try:
+                store_box[0].replace_treatments(items)
+            except Exception as e:
+                log("could not store treatments: %s" % e)
+
+    if args.source == "nightscout":
+        log("data folder %s  source Nightscout" % folder)
+        store = Store(folder, False, None, source="nightscout")
+        store_box.append(store)
+        f = NightscoutFollower(args.ns_url, key, on_event, on_status, on_treatments)
+        del key
+    else:
+        name = (args.name or DEFAULT_NAME).strip() or DEFAULT_NAME
+        topic, aes_key = derive_keys(key)
+        del key
+        log("sync group id %s...  data folder %s  mode %s" % (topic[:8], folder, "active" if args.active else "passive"))
+        store = Store(folder, args.active, name)
+        store_box.append(store)
+        f = Follower(args.server, args.port, get_token(folder), topic, aes_key, on_event, on_status,
+                     passive=not args.active, name=name)
 
     def stop(*_):
         raise SystemExit(0)
@@ -705,6 +923,94 @@ def main():
 # ----------------------------------------------------------------------------
 # Offline self test: fake server, fake messages, check the two files
 # ----------------------------------------------------------------------------
+def ns_selftest(check):
+    """Fake Nightscout that only accepts the API secret (so the token is tried first and refused)."""
+    import http.server
+    secret = "my-api-secret-123"
+    now = int(time.time() * 1000)
+    state = {"treatments": [
+        {"_id": "t1", "created_at": _iso_from_ms(now - 3600000), "insulin": "2.5", "eventType": "Correction Bolus"},
+        {"_id": "t2", "mills": now - 1800000, "carbs": 40, "eventType": "Meal Bolus"},
+        {"_id": "t3", "created_at": _iso_from_ms(now - 600000), "eventType": "Note", "notes": "no amounts"}],
+        "seen_token": False, "hits": 0}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            u = urllib.parse.urlparse(self.path)
+            q = urllib.parse.parse_qs(u.query)
+            if "token" in q:
+                state["seen_token"] = True
+            if self.headers.get("api-secret") != hashlib.sha1(secret.encode()).hexdigest():
+                self.send_response(401)
+                self.end_headers()
+                return
+            state["hits"] += 1
+            if u.path == "/api/v1/entries/sgv.json":
+                frm = int(q.get("find[date][$gte]", ["0"])[0])
+                data = [e for e in [
+                    {"sgv": 150, "date": now - 900000, "direction": "Flat"},
+                    {"sgv": 10, "date": now - 600000, "direction": "NONE"},             # error code -> skipped
+                    {"sgv": 162, "date": now - 300000, "direction": "NOT COMPUTABLE", "delta": 12},
+                    {"sgv": 171, "date": now - 1000, "direction": "SingleUp"}] if e["date"] >= frm]
+            elif u.path == "/api/v1/entries/mbg.json":
+                data = [{"mbg": 180, "date": now - 120000}]
+            elif u.path == "/api/v1/treatments.json":
+                data = state["treatments"]
+            else:
+                data = []
+            body = json.dumps(data).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    folder = tempfile.mkdtemp(prefix="xdrip-ns-selftest-")
+    store = Store(folder, False, None, source="nightscout")
+    lk = threading.Lock()
+
+    def ev(e):
+        with lk:
+            store.handle(e)
+
+    def st(**kw):
+        with lk:
+            store.set_status(**kw)
+
+    def tr(items):
+        with lk:
+            store.replace_treatments(items)
+
+    f = NightscoutFollower("http://127.0.0.1:%d/" % srv.server_address[1], secret, ev, st, tr, poll_s=0.2, slow_s=0)
+    threading.Thread(target=f.run, daemon=True).start()
+    deadline = time.time() + 8
+    while time.time() < deadline and not (store.readings and store.treatments):
+        time.sleep(0.05)
+    with lk:
+        mg = [r["mgdl"] for r in sorted(store.readings.values(), key=lambda r: r["t"])]
+        trends = [r["trend"] for r in sorted(store.readings.values(), key=lambda r: r["t"])]
+        trs = dict(store.treatments)
+    check(mg == [150.0, 162.0, 171.0], "Nightscout readings stored (sensor error code skipped)")
+    check(trends == ["Flat", "SingleUp", "SingleUp"], "Nightscout trends, missing direction worked out from delta")
+    check(state["seen_token"] and f.mode == "secret", "token tried first, then API secret used")
+    check(set(trs) == {"t1", "t2"} and trs["t1"]["insulin"] == 2.5 and trs["t2"]["carbs"] == 40.0,
+          "Nightscout treatments stored (entries without insulin or carbs ignored)")
+    check(store.bloodtests and list(store.bloodtests.values())[0]["mgdl"] == 180.0, "Nightscout finger-stick stored")
+    state["treatments"] = state["treatments"][1:]                          # t1 deleted on the site
+    time.sleep(0.8)
+    with lk:
+        check(set(store.treatments) == {"t2"}, "treatment deleted on Nightscout disappears")
+        check(store.status.get("connected") and store.status.get("source") == "nightscout", "status says Nightscout, connected")
+    f.shutdown()
+    srv.shutdown()
+    with open(os.path.join(folder, "latest.json")) as fh:
+        check(json.load(fh)["reading"]["mgdl"] == 171.0, "latest.json has the newest Nightscout reading")
+
+
 def selftest():
     sync_key = "this-is-a-test-sync-key-1234567890"
     topic, aes_key = derive_keys(sync_key)
@@ -811,6 +1117,13 @@ def selftest():
 
     store2 = Store(folder, False, None)
     check(len(store2.readings) == 3 and len(store2.treatments) == 2, "history survives a restart")
+    ns_selftest(check)
+    if fcntl is None:                                    # Windows: single in-process collector, no takeover
+        check(take_lock(folder, takeover=False) is not None, "data folder lock taken")
+        rc = json.loads(rollcall_json(DEFAULT_NAME))
+        check(rc["device_name"] == "gnome_info_collector", "roll call name gnome_info_collector")
+        print("\nSELF TEST", "PASSED" if ok else "FAILED")
+        return 0 if ok else 1
     import subprocess
     holder = subprocess.Popen([sys.executable, os.path.abspath(__file__), "--hold-lock", folder])
     time.sleep(0.8)

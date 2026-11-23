@@ -1,9 +1,14 @@
 {
   "uuid": "xdrip-topbar@local",
-  "name": "xDrip+ Top Bar",
-  "description": "Shows the latest xDrip+ glucose reading (mmol/L), trend arrow and minutes since the reading in the top bar, with a 48-hour history graph. Runs its own background collector that follows xDrip+ Cloud Sync.",
-  "shell-version": ["46"],
-  "session-modes": ["user", "unlock-dialog"],
+  "name": "xDrip Top Bar",
+  "description": "Shows the latest xDrip glucose reading (mmol/L or mg/dL), trend arrow and minutes since the reading in the top bar, with a zoomable 48-hour history graph. Runs its own background collector that follows xDrip Cloud Sync or reads a Nightscout site.",
+  "shell-version": [
+    "46"
+  ],
+  "session-modes": [
+    "user",
+    "unlock-dialog"
+  ],
   "settings-schema": "org.gnome.shell.extensions.xdrip-topbar",
-  "version": 6
+  "version": 7
 }
