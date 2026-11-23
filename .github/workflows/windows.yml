@@ -143,7 +143,10 @@ jobs:
           Not a medical device: rely on xDrip+ for alarms.
           NOTES
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" dist/xDripTray.exe dist/xDripTray.exe.sha256 --clobber
+            # Same version built again (e.g. only docs changed): keep the published .exe, because
+            # replacing it resets its download count. Only the release notes are refreshed.
+            # To publish new code, increase VERSION in windows/xdrip_tray.py.
+            echo "Release $tag already exists: updating the notes only, the .exe is kept."
             gh release edit "$tag" --notes-file notes.md
           else
             gh release create "$tag" dist/xDripTray.exe dist/xDripTray.exe.sha256 \

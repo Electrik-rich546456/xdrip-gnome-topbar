@@ -35,7 +35,7 @@ import xdrip_gnome_collector as col      # noqa: E402  (shared with the GNOME ex
 import graph                              # noqa: E402
 
 APP_NAME = "xDrip+ Tray"
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 KEYRING_SERVICE = "xdrip-topbar"
 KEYRING_USER = "sync-key"
 KEYRING_NS_USER = "nightscout-secret"      # Nightscout access token or API secret (added in 1.1.0)
@@ -338,6 +338,36 @@ def set_start_with_windows(on):
                 pass
 
 
+# ============================================================================ tray icon (Windows fixes)
+def make_tray_icon_class():
+    """pystray's Windows icon, made to notice when Windows has lost it and add it again.
+    pystray ignores Windows refusing to add or update the icon, which can happen when the app
+    starts at login before the taskbar is ready, so the icon could stay missing. The ID stays 0,
+    the ID pystray has always ended up using, so Windows keeps the user's "show this icon" choice."""
+    import pystray
+    if not IS_WINDOWS:
+        return pystray.Icon
+    import ctypes
+    from pystray._util import win32
+
+    class StableTrayIcon(pystray.Icon):
+        TRAY_ID = 0
+
+        def _message(self, code, flags, **kwargs):
+            kwargs.pop("hID", None)
+            ok = win32.Shell_NotifyIcon(code, win32.NOTIFYICONDATAW(
+                cbSize=ctypes.sizeof(win32.NOTIFYICONDATAW), hWnd=self._hwnd,
+                uID=self.TRAY_ID, uFlags=flags, **kwargs))
+            if not ok and code == win32.NIM_MODIFY and self.visible:
+                try:
+                    self._show()                  # add it again, with the current image and tooltip
+                except Exception:
+                    pass
+            return ok
+
+    return StableTrayIcon
+
+
 # ============================================================================ GUI
 class App:
     def __init__(self, settings=None, collector=None):
@@ -447,7 +477,7 @@ class App:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", lambda: self.q.put(self.quit)),
         )
-        self.tray = pystray.Icon("xdrip-tray", self.tray_image(None), APP_NAME, menu)
+        self.tray = make_tray_icon_class()("xdrip-tray", self.tray_image(None), APP_NAME, menu)
         self.tray.run_detached()
         self.update_tray(self.current())
 
@@ -461,8 +491,9 @@ class App:
         size = 64
         img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         d = ImageDraw.Draw(img)
-        if not c:
-            d.ellipse([8, 8, 56, 56], outline=(160, 160, 160, 255), width=6)
+        if not c:                                        # no reading yet: a clear "--", not an empty ring
+            d.rounded_rectangle([0, 6, 63, 58], radius=10, fill=(20, 20, 22, 230))
+            d.text((32, 31), "--", font=graph.font(40), fill=(170, 170, 170, 255), anchor="mm")
             return img
         text = c["value"] if len(c["value"]) <= 3 else c["value"].split(".")[0]   # "12.4" -> "12"
         fsize = 40 if len(text) <= 3 else 34
@@ -1084,6 +1115,18 @@ def selftest(out_path=None):
         except Exception as e:
             check(False, "import %s (%s)" % (mod, e))
 
+    try:
+        import pystray
+        cls = make_tray_icon_class()
+        ok_cls = issubclass(cls, pystray.Icon)
+        if IS_WINDOWS:
+            from pystray._util import win32 as pw
+            ok_cls = ok_cls and cls.TRAY_ID == 0 and hasattr(pw, "NIM_MODIFY") and hasattr(pw, "NOTIFYICONDATAW") \
+                and "uID" in [f[0] for f in pw.NOTIFYICONDATAW._fields_]
+        check(ok_cls, "tray icon class that re-adds a lost icon")
+    except Exception as e:
+        check(False, "tray icon class (%s)" % e)
+
     key = "this-is-a-test-sync-key-1234567890"
     j = json.dumps({"custom_sync_key": key, "use_custom_sync_key": "true"})
     qr = "xdpref:" + base64.b64encode(zlib.compress(j.encode())).decode().rstrip("=")
@@ -1236,6 +1279,8 @@ def screenshots(out_dir):
             img.save(os.path.join(out_dir, name))
             shots.append(name)
         settings["units"] = "mmol"
+        app.tray_image(None).resize((128, 128)).save(os.path.join(out_dir, "tray-icon-waiting.png"))
+        shots.append("tray-icon-waiting.png")
 
     step(tray, 100)
     step(app.show_widget, 1200)

@@ -151,6 +151,7 @@ The Settings window is available from the tray or widget menu.
 | "could not decode … sync key mismatch?" in the log | Wrong key. Copy it again from the master phone. |
 | "Nightscout refused access (HTTP 401)" | The token or API secret is wrong, or your site needs one and none is saved. Make a new token with the **readable** role. |
 | "Nightscout answered HTTP …" or can't be reached | Check the address opens in a browser, and that it starts with `https://`. |
+| Tray icon sometimes missing | Update to 1.1.3 or newer, which adds the icon again if Windows loses it, for example when the app starts at login before the taskbar is ready. Also keep `xDripTray.exe` in one place with the same name: Windows remembers "show this icon" by file location, so a new download saved as `xDripTray (1).exe` or in another folder starts out hidden again. |
 | "Another copy is already collecting" | The app is already running. Check the tray, including the `^` overflow area. |
 | Readings stop after the PC sleeps | The app reconnects by itself within a few minutes of waking. Meanwhile the reading turns your stale colour. |
 | Insulin or carbs missing from the graph | Treatments only arrive while the app is running, at the moment they're entered or edited on the phone. |
