@@ -25,6 +25,17 @@ In Settings, enter your sync key and choose the data folder.
 
 You need: `python3-cryptography`, `gjs` and `gir1.2-secret-1`. The installer tells you if any of them are missing. To read the QR code from a screenshot you also need `zbar-tools`, which is optional.
 
+## Windows
+
+There's also a **Windows version**. It shows the reading in the taskbar tray and an optional floating widget, with the same 48-hour graph.
+- **Download:** `xDripTray.exe` from [Releases](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/releases)
+- **Instructions:** the [Windows guide](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/blob/windows/windows/README.md)
+- **Source:** the [`windows` branch](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/tree/windows)
+
+The Windows version hasn't been tested on a real Windows PC yet, so feedback and bug reports are very welcome. Please open an [issue](https://github.com/Electrik-rich546456/xdrip-gnome-topbar/issues).
+
+**Linux requirements:** GNOME Shell 46, which is the default on Ubuntu 24.04.
+
 ## Getting your sync key
 
 The collector joins your xDrip+ sync group using your **Handset Group Security Sync Key**. Do everything below on your **master** phone, the one connected to the sensor.
