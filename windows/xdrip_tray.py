@@ -35,7 +35,7 @@ import xdrip_gnome_collector as col      # noqa: E402  (shared with the GNOME ex
 import graph                              # noqa: E402
 
 APP_NAME = "xDrip+ Tray"
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 KEYRING_SERVICE = "xdrip-topbar"
 KEYRING_USER = "sync-key"
 KEYRING_NS_USER = "nightscout-secret"      # Nightscout access token or API secret (added in 1.1.0)
@@ -1274,7 +1274,7 @@ class DemoCollector:
             mg = max(2.6, v - dip) * col.MGDL_PER_MMOL
             readings.append({"t": t, "mgdl": round(mg, 1), "mmol": round(mg / col.MGDL_PER_MMOL, 2),
                              "slope": 0.3, "trend": "Flat"})
-        readings[-1]["trend"] = "FortyFiveUp"
+        readings[-1]["trend"] = "DoubleUp"                        # shows the double arrow in the screenshots
         readings[-1]["t"] = now - 3 * 60000
         tr = []
         for day in (0, 1):

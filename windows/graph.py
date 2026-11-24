@@ -45,6 +45,49 @@ def font(size):
     return _font_cache[size]
 
 
+_sym_cache = {}
+ARROW_CHARS = set("⇈↑↗→↘↓⇊")
+
+
+def symbol_font(size):
+    """A font that has all the trend arrows (the normal Windows font lacks some, e.g. ⇈ ⇊)."""
+    size = int(round(size))
+    if size not in _sym_cache:
+        f = None
+        for name in ("seguisym.ttf", "DejaVuSans.ttf"):
+            try:
+                f = ImageFont.truetype(name, size)
+                break
+            except OSError:
+                continue
+        _sym_cache[size] = f or font(size)
+    return _sym_cache[size]
+
+
+def _runs_of_text(text):
+    """Splits text into (is_arrow, part) pieces."""
+    out = []
+    for ch in text:
+        a = ch in ARROW_CHARS
+        if out and out[-1][0] == a:
+            out[-1][1] += ch
+        else:
+            out.append([a, ch])
+    return out
+
+
+def text_width(dr, text, size):
+    return sum(dr.textlength(part, font=symbol_font(size) if a else font(size)) for a, part in _runs_of_text(text))
+
+
+def draw_text_lm(dr, x, y, text, size, fill):
+    """Left-middle anchored text; arrows are drawn with the symbol font."""
+    for a, part in _runs_of_text(text):
+        f = symbol_font(size) if a else font(size)
+        dr.text((x, y), part, font=f, fill=fill, anchor="lm")
+        x += dr.textlength(part, font=f)
+
+
 # ---------------------------------------------------------------- helpers shared with the app
 def mmol_of(r):
     if r is None:
@@ -397,8 +440,8 @@ def draw_graph(w, h, history, opts, now_ms, view=None, out=None):
         if len(allr) > 1 and last["t"] - allr[-2]["t"] < 16 * 60000:
             dlt = v - mmol_of(allr[-2])
             head += "  %s%s" % ("+" if dlt >= 0 else "−", fmt_glucose(abs(dlt), units))
-        dr.text((left, head_y), head, font=f_main, fill=hex_rgb(colors[range_of(v, low, high)]), anchor="lm")
-        x2 = left + dr.textlength(head, font=f_main) + S(fs)
+        draw_text_lm(dr, left, head_y, head, S(fs), hex_rgb(colors[range_of(v, low, high)]))
+        x2 = left + text_width(dr, head, S(fs)) + S(fs)
         dr.text((x2, head_y), "at %s" % fmt_time12(last["t"]), font=f_main, fill=(255, 255, 255, 153), anchor="lm")
     else:
         dr.text(((left + right) / 2, (top + bottom) / 2), "No readings in the last 48 hours yet",
@@ -413,7 +456,7 @@ def draw_graph(w, h, history, opts, now_ms, view=None, out=None):
         sx, sy = S(sel["x"]), S(sel["y"])
         dr.ellipse([sx - S(7), sy - S(7), sx + S(7), sy + S(7)], outline=(255, 255, 255, 230), width=S(2))
         if opts.get("event_popup", True):
-            tw = dr.textlength(sel["label"], font=f_main)
+            tw = text_width(dr, sel["label"], S(fs))
             bw, bh = tw + S(14), S(fs) + S(12)
             bx, by = sx + S(12), sy - bh - S(10)
             if bx + bw > W - S(2):
@@ -422,7 +465,7 @@ def draw_graph(w, h, history, opts, now_ms, view=None, out=None):
                 by = sy + S(12)
             bx = max(S(2), bx)
             dr.rectangle([bx, by, bx + bw, by + bh], fill=(13, 13, 15, 235), outline=(255, 255, 255, 90), width=SS)
-            dr.text((bx + S(7), by + bh / 2), sel["label"], font=f_main, fill=(255, 255, 255, 242), anchor="lm")
+            draw_text_lm(dr, bx + S(7), by + bh / 2, sel["label"], S(fs), (255, 255, 255, 242))
     if out is not None:
         out["targets"] = targets
         out["selected"] = sel
