@@ -3,6 +3,8 @@
 
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import Pango from 'gi://Pango';
+import PangoCairo from 'gi://PangoCairo';
 
 export const SCHEMA_ID = 'org.gnome.shell.extensions.xdrip-topbar';
 export const HISTORY_HOURS = 48;
@@ -206,13 +208,37 @@ function interpMmol(readings, t) {
     return mmolOf(a) + f * (mmolOf(b) - mmolOf(a));
 }
 
+// Text is drawn with Pango (not Cairo's basic "toy" text), so characters missing from the main font,
+// such as the trend arrows ↗ ⇈, are taken from another font instead of showing as an empty box.
+let fontPx = 12;
+
+function setFont(px) {
+    fontPx = px;
+}
+
+function textLayout(cr, str) {
+    const layout = PangoCairo.create_layout(cr);
+    const desc = Pango.FontDescription.from_string('Sans');
+    desc.set_absolute_size(fontPx * Pango.SCALE);
+    layout.set_font_description(desc);
+    layout.set_text(str, -1);
+    return layout;
+}
+
+/** Width of str in pixels at the current font size. */
+function textWidth(cr, str) {
+    return textLayout(cr, str).get_pixel_extents()[1].width;
+}
+
+/** Draws str with its baseline at y; align: 'left' | 'center' | 'right' around x. */
 function text(cr, str, x, y, align = 'left') {
-    const ext = cr.textExtents(str);
+    const layout = textLayout(cr, str);
+    const w = layout.get_pixel_extents()[1].width;
     let dx = 0;
-    if (align === 'center') dx = -ext.width / 2 - ext.xBearing;
-    else if (align === 'right') dx = -ext.width - ext.xBearing;
-    cr.moveTo(x + dx, y);
-    cr.showText(str);
+    if (align === 'center') dx = -w / 2;
+    else if (align === 'right') dx = -w;
+    cr.moveTo(x + dx, y - layout.get_baseline() / Pango.SCALE);
+    PangoCairo.show_layout(cr, layout);
     cr.newPath();          // don't leave the text position in the next path
 }
 
@@ -315,8 +341,7 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     cr.fill();
 
     const {fs, padL, padR, padT, pw, ph} = layout(w, h);
-    cr.selectFontFace('Sans', 0 /* normal */, 0 /* normal */);
-    cr.setFontSize(fs);
+    setFont(fs);
 
     // vertical scale: at least 2-15 mmol/L (36-270 mg/dL), grows to fit what is on screen, top rounded
     // to a label. Internally everything stays in mmol/L; only the labels use the chosen units.
@@ -453,7 +478,7 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     }
 
     // treatments: like xDrip+, placed on the glucose line with the amount written next to it
-    cr.setFontSize(fs * 0.9);
+    setFont(fs * 0.9);
     for (const t of treatments) {
         const x = X(Math.min(t.t, nowMs));
         const level = interpMmol(readings, t.t);
@@ -483,7 +508,7 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
     }
 
     // header: latest value, delta, time
-    cr.setFontSize(fs * 1.05);
+    setFont(fs * 1.05);
     const last = all[all.length - 1];
     if (last) {
         const v = mmolOf(last);
@@ -496,7 +521,7 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
         setColor(cr, opts.colors[rangeOf(v, opts.low, opts.high)]);
         text(cr, head, padL, fs * 1.35);
         cr.setSourceRGBA(1, 1, 1, 0.6);
-        text(cr, `at ${fmtTime12(last.t)}`, padL + cr.textExtents(head).xAdvance + fs, fs * 1.35);
+        text(cr, `at ${fmtTime12(last.t)}`, padL + textWidth(cr, head) + fs, fs * 1.35);
     } else {
         cr.setSourceRGBA(1, 1, 1, 0.6);
         text(cr, 'No readings in the last 48 hours yet', padL + pw / 2, padT + ph / 2, 'center');
@@ -513,9 +538,8 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
         cr.arc(sel.x, sel.y, 7, 0, 2 * Math.PI);
         cr.stroke();
         if (opts.eventPopup ?? true) {
-            cr.setFontSize(fs);
-            const ext = cr.textExtents(sel.label);
-            const bw = ext.xAdvance + 14, bh = fs + 12;
+            setFont(fs);
+            const bw = textWidth(cr, sel.label) + 14, bh = fs + 12;
             let bx = sel.x + 12, by = sel.y - bh - 10;
             if (bx + bw > w - 2)
                 bx = sel.x - 12 - bw;
