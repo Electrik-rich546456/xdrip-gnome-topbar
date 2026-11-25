@@ -10,5 +10,5 @@
     "unlock-dialog"
   ],
   "settings-schema": "org.gnome.shell.extensions.xdrip-topbar",
-  "version": 11
+  "version": 12
 }

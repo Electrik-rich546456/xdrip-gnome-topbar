@@ -137,7 +137,7 @@ The Settings window is available from the tray or widget menu.
 - Line on or off, smooth or straight, line width, and line colour (by range or one colour).
 - Where the details of a clicked item appear: a small popup next to it, or the line at the bottom.
 - A dot for every reading.
-- Where the line breaks at a gap.
+- Where the line breaks at a gap, and **Fill gaps**: a straight line in its own colour (purple by default) across each gap, so missing readings stand out. Click it to see how long the gap was.
 - Reset zoom.
 
 **About tab**

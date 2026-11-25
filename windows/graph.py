@@ -200,6 +200,11 @@ def hit_test(targets, x, y):
     """The item under (x, y) in a graph drawn by draw_graph(out=...), or None."""
     best, best_d = None, float("inf")
     for t in targets or []:
+        if t["kind"] == "gap":                   # the whole bridging line can be clicked
+            d = _seg_dist(x, y, t["x1"], t["y1"], t["x2"], t["y2"]) + 2   # readings at its ends win
+            if d < 10 and d < best_d:
+                best, best_d = t, d
+            continue
         d = math.hypot(t["x"] - x, t["y"] - y) - (0 if t["kind"] == "reading" else 6)   # markers win
         if d < (14 if t["kind"] == "reading" else 16) and d < best_d:
             best, best_d = t, d
@@ -211,6 +216,21 @@ def _fmt_span(hours):
 
 
 # ---------------------------------------------------------------- curve
+def _seg_dist(x, y, x1, y1, x2, y2):
+    dx, dy = x2 - x1, y2 - y1
+    l2 = dx * dx + dy * dy
+    u = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / l2)) if l2 > 0 else 0.0
+    return math.hypot(x1 + u * dx - x, y1 + u * dy - y)
+
+
+def fmt_duration(ms):
+    """'25 min', '1 h 32 min'"""
+    m = int(round(ms / 60000))
+    if m < 60:
+        return "%d min" % m
+    return "%d h %d min" % (m // 60, m % 60) if m % 60 else "%d h" % (m // 60)
+
+
 def _runs(points, gap_ms):
     runs, cur = [], []
     for p in points:
@@ -359,11 +379,33 @@ def draw_graph(w, h, history, opts, now_ms, view=None, out=None):
     # readings
     px_per_reading = pw / (span / 300000)
     rad = max(1.3, min(3.5, px_per_reading * 0.35))
-    runs = [[(X(r["t"]), Y(mmol_of(r)), mmol_of(r)) for r in run]
-            for run in _runs(readings, opts.get("gap_ms", 15 * 60000))]
+    raw_runs = _runs(readings, opts.get("gap_ms", 15 * 60000))
+    runs = [[(X(r["t"]), Y(mmol_of(r)), mmol_of(r)) for r in run] for run in raw_runs]
     show_line = opts.get("line", True)
     targets = []
     when = lambda ms: fmt_when(ms, now_ms)
+    # gaps: a straight line in the gap colour from the last reading before the gap to the first
+    # one after it. Straight on purpose: nothing was measured there.
+    if opts.get("fill_gaps", False):
+        glw = max(1, int(round(S(opts.get("line_width", 2)))))
+        gmask = Image.new("L", (W, H), 0)
+        gmd = ImageDraw.Draw(gmask)
+        for i in range(1, len(runs)):
+            (ax, ay, _), (bx, by, _) = runs[i - 1][-1], runs[i][0]
+            if bx < left or ax > right:
+                continue
+            gmd.line([(ax, ay), (bx, by)], fill=255, width=glw)
+            for px, py in ((ax, ay), (bx, by)):
+                gmd.ellipse([px - glw / 2, py - glw / 2, px + glw / 2, py + glw / 2], fill=255)
+            ta, tb = raw_runs[i - 1][-1]["t"], raw_runs[i][0]["t"]
+            x1, x2 = max(ax, left), min(bx, right)
+            y_at = lambda x: ay + (by - ay) * ((x - ax) / (bx - ax) if bx > ax else 0)
+            mx = (x1 + x2) / 2
+            targets.append({"kind": "gap", "key": "g%d" % ta, "x": mx / SS, "y": y_at(mx) / SS,
+                            "x1": x1 / SS, "y1": y_at(x1) / SS, "x2": x2 / SS, "y2": y_at(x2) / SS,
+                            "label": "No readings for %s (%s – %s)" % (fmt_duration(tb - ta), when(ta), when(tb))})
+        box = (int(left), 0, int(right), H)
+        img.paste(hex_rgb(opts.get("gap_color") or "#b05cff")[:3], box, gmask.crop(box))
     for r in visible:
         v = mmol_of(r)
         targets.append({"kind": "reading", "key": "r%d" % r["t"], "x": X(r["t"]) / SS, "y": Y(v) / SS,

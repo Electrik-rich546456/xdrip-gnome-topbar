@@ -80,6 +80,8 @@ export function graphOptions(settings) {
         lineColor: settings.get_string('graph-line-color'),
         dots: settings.get_boolean('graph-show-dots'),
         gapMs: settings.get_int('graph-gap-minutes') * 60000,
+        fillGaps: settings.get_boolean('graph-fill-gaps'),
+        gapColor: settings.get_string('graph-gap-color'),
         spanHours: settings.get_double('graph-hours'),
         units: settings.get_string('units'),
         eventPopup: settings.get_string('graph-event-info') !== 'status',
@@ -296,10 +298,35 @@ export function fmtWhen(ms, nowMs = Date.now()) {
     return d.format(sameDay ? '%-I:%M %p' : '%a %-I:%M %p');
 }
 
+/** Distance from (x, y) to the segment (x1, y1)–(x2, y2). */
+function segDist(x, y, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len2 = dx * dx + dy * dy;
+    const u = len2 > 0 ? Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / len2)) : 0;
+    return Math.hypot(x1 + u * dx - x, y1 + u * dy - y);
+}
+
+/** '25 min', '1 h 32 min' */
+export function fmtDuration(ms) {
+    const min = Math.round(ms / 60000);
+    if (min < 60)
+        return `${min} min`;
+    const h = Math.floor(min / 60), m = min % 60;
+    return m ? `${h} h ${m} min` : `${h} h`;
+}
+
 /** The item under (x, y) in a graph drawn by drawGraph(), or null. */
 export function hitTest(targets, x, y) {
     let best = null, bestD = Infinity;
     for (const t of targets ?? []) {
+        if (t.kind === 'gap') {                         // the whole bridging line can be clicked
+            const d = segDist(x, y, t.x1, t.y1, t.x2, t.y2) + 2;   // readings at its ends win
+            if (d < 10 && d < bestD) {
+                best = t;
+                bestD = d;
+            }
+            continue;
+        }
         const d = Math.hypot(t.x - x, t.y - y) - (t.kind === 'reading' ? 0 : 6);   // markers win over the line
         if (d < (t.kind === 'reading' ? 14 : 16) && d < bestD) {
             best = t;
@@ -422,7 +449,32 @@ export function drawGraph(cr, w, h, history, opts, nowMs = Date.now(), view = nu
             label: `${fmtGlucose(v, units)} ${unitLabel(units)} ${arrowFor(r)} at ${when(r.t)}`});
     }
     const runs = runsOf(readings, opts.gapMs ?? 15 * 60000)
-        .map(run => run.map(r => ({x: X(r.t), y: Y(mmolOf(r)), v: mmolOf(r)})));
+        .map(run => run.map(r => ({t: r.t, x: X(r.t), y: Y(mmolOf(r)), v: mmolOf(r)})));
+    // gaps (readings further apart than gapMs): a straight line in the gap colour from the last
+    // reading before the gap to the first one after it. Straight on purpose: nothing was measured.
+    if (opts.fillGaps) {
+        cr.save();
+        cr.rectangle(padL, padT - 20, pw, ph + 40);
+        cr.clip();
+        setColor(cr, opts.gapColor || '#b05cff');
+        cr.setLineWidth(opts.lineWidth ?? 2);
+        cr.setLineCap(1 /* round */);
+        for (let i = 1; i < runs.length; i++) {
+            const a = runs[i - 1][runs[i - 1].length - 1], b = runs[i][0];
+            if (b.x < padL || a.x > padL + pw)
+                continue;
+            cr.moveTo(a.x, a.y);
+            cr.lineTo(b.x, b.y);
+            cr.stroke();
+            const x1 = Math.max(a.x, padL), x2 = Math.min(b.x, padL + pw);
+            const yAt = x => a.y + (b.y - a.y) * (b.x > a.x ? (x - a.x) / (b.x - a.x) : 0);
+            const mx = (x1 + x2) / 2;
+            targets.push({kind: 'gap', key: `g${a.t}`, x: mx, y: yAt(mx),
+                x1, y1: yAt(x1), x2, y2: yAt(x2),
+                label: `No readings for ${fmtDuration(b.t - a.t)} (${when(a.t)} – ${when(b.t)})`});
+        }
+        cr.restore();
+    }
     if (showLine) {
         const lw = opts.lineWidth ?? 2;
         const bands = opts.lineByRange ?? true

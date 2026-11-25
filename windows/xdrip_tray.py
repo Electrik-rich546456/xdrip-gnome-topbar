@@ -35,7 +35,7 @@ import xdrip_gnome_collector as col      # noqa: E402  (shared with the GNOME ex
 import graph                              # noqa: E402
 
 APP_NAME = "xDrip+ Tray"
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 KEYRING_SERVICE = "xdrip-topbar"
 KEYRING_USER = "sync-key"
 KEYRING_NS_USER = "nightscout-secret"      # Nightscout access token or API secret (added in 1.1.0)
@@ -72,6 +72,8 @@ DEFAULTS = {
     "graph_line_color": "#e0e0e0",
     "graph_show_dots": False,
     "graph_gap_minutes": 15,
+    "graph_fill_gaps": False,              # bridge gaps in the readings with a straight line
+    "graph_gap_color": "#b05cff",
     "graph_hours": 48.0,
     "graph_event_info": "popup",           # details of a clicked graph item: "popup" or "status"
     "units": "mmol",                       # "mmol" or "mgdl" (limits are stored in mmol/L either way)
@@ -124,7 +126,9 @@ class Settings:
                 "line_width": float(self["graph_line_width"]),
                 "line_by_range": self["graph_line_color_mode"] == "range",
                 "line_color": self["graph_line_color"], "dots": bool(self["graph_show_dots"]),
-                "gap_ms": int(self["graph_gap_minutes"]) * 60000, "span_hours": float(self["graph_hours"]),
+                "gap_ms": int(self["graph_gap_minutes"]) * 60000,
+                "fill_gaps": bool(self["graph_fill_gaps"]), "gap_color": self["graph_gap_color"],
+                "span_hours": float(self["graph_hours"]),
                 "event_popup": self["graph_event_info"] != "status",
                 "units": self["units"]}
 
@@ -905,19 +909,24 @@ class SettingsWindow:
         ttk.Label(g, text="Single line colour").grid(row=4, column=0, sticky="w")
         self._color(g, "graph_line_color", 4, 1)
         self._check(g, "Show a dot for every reading (always shown when the line is off)", "graph_show_dots", 5)
-        self._spin(g, "Break the line after a gap of (minutes)", "graph_gap_minutes", 6, 6, 120, 1)
+        self._spin(g, "A gap is readings more than (minutes) apart", "graph_gap_minutes", 6, 6, 120, 1)
+        self._check(g, "Fill gaps with a straight line (nothing is guessed; click it to see how long)",
+                    "graph_fill_gaps", 7)
+        ttk.Label(g, text="Gap line colour").grid(row=8, column=0, sticky="w")
+        self._color(g, "graph_gap_color", 8, 1)
         ttk.Button(g, text="Reset zoom to 48 hours",
-                   command=lambda: app.set_view({"span_hours": 48.0, "offset_ms": 0})).grid(row=7, column=0, sticky="w", pady=8)
-        ttk.Label(g, text="Details of a clicked item").grid(row=8, column=0, sticky="w")
+                   command=lambda: app.set_view({"span_hours": 48.0, "offset_ms": 0})).grid(row=9, column=0, sticky="w", pady=8)
+        ttk.Label(g, text="Details of a clicked item").grid(row=10, column=0, sticky="w")
         info = tk.StringVar(value="Small popup next to it" if s["graph_event_info"] != "status" else "In the line at the bottom")
         icb = ttk.Combobox(g, textvariable=info, values=["Small popup next to it", "In the line at the bottom"],
                            state="readonly", width=24)
-        icb.grid(row=8, column=1, columnspan=2, sticky="w")
+        icb.grid(row=10, column=1, columnspan=2, sticky="w")
         icb.bind("<<ComboboxSelected>>", lambda e: self._set("graph_event_info",
                                                              "status" if info.get() == "In the line at the bottom" else "popup"))
         ttk.Label(g, text="On the graph: mouse wheel zooms (remembered); drag, or Shift + wheel, moves back and forward "
                           "in time; middle click shows all 48 hours; click a reading, insulin, carbs or finger-stick to "
-                          "see its exact time.", wraplength=460, foreground="#555").grid(row=9, column=0, columnspan=3, sticky="w")
+                          "see its exact time, or a gap line to see how long the gap was.", wraplength=460,
+                  foreground="#555").grid(row=11, column=0, columnspan=3, sticky="w")
         # ---------------- about
         a = ttk.Frame(nb, padding=14)
         nb.add(a, text="About")
