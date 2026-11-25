@@ -14,7 +14,7 @@ A GNOME Shell extension that shows your latest [xDrip+](https://github.com/Night
 
 > **Not a medical device.** This is a convenience display. Don't base treatment decisions on it, and rely on xDrip+ itself for alarms. Readings can be late, missing or wrong.
 
-The top bar shows `6.4 → 3m` or `115 → 3m` (mmol/L or mg/dL, trend arrow, minutes since the reading). Click it to see a 48-hour graph styled like the xDrip+ main screen: line coloured by range, the target band shaded, insulin as blue ▼ and carbs as orange ●, finger-sticks as red dots, and all times on a 12-hour clock.
+The top bar shows `6.4 → 3m` or `115 → 3m` (mmol/L or mg/dL, trend arrow, minutes since the reading). Click it to see a 48-hour graph styled like the xDrip+ main screen: line coloured by range, the target band shaded, insulin as blue ▼ and carbs as orange ●, finger-sticks as red dots, and all times on a 12-hour clock. Turn on **Settings › History › Gaps › Fill gaps** to bridge missing readings with a straight line in a colour you choose (purple by default). Click that line to see how long the gap was.
 
 ## Install
 

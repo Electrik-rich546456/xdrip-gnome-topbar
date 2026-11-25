@@ -558,7 +558,6 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         const single = new Adw.ActionRow({title: 'Single line colour'});
         single.add_suffix(colorButton(s, 'graph-line-color'));
         lineOnly.push(single);
-        lineOnly.push(spinRow(s, 'graph-gap-minutes', 'Break the line after a gap of (minutes)', null, 6, 120, 1, 0));
 
         const syncSensitive = () => {
             const on = s.get_boolean('graph-show-line');
@@ -579,6 +578,23 @@ export default class XdripTopbarPrefs extends ExtensionPreferences {
         s.bind('graph-show-dots', dots, 'active', Gio.SettingsBindFlags.DEFAULT);
         look.add(dots);
         page.add(look);
+
+        // --- gaps in the readings
+        const gaps = new Adw.PreferencesGroup({
+            title: 'Gaps',
+            description: 'Where readings are further apart than this, the line breaks. Turn on “Fill gaps” ' +
+                'to bridge each gap with a straight line in its own colour, so missing data is easy to spot. ' +
+                'Click the line to see how long the gap was.',
+        });
+        gaps.add(spinRow(s, 'graph-gap-minutes', 'A gap is readings more than (minutes) apart', null, 6, 120, 1, 0));
+        const fill = new Adw.SwitchRow({title: 'Fill gaps', subtitle: 'Straight line, nothing is guessed'});
+        s.bind('graph-fill-gaps', fill, 'active', Gio.SettingsBindFlags.DEFAULT);
+        gaps.add(fill);
+        const gapColor = new Adw.ActionRow({title: 'Gap line colour'});
+        gapColor.add_suffix(colorButton(s, 'graph-gap-color'));
+        s.bind('graph-fill-gaps', gapColor, 'sensitive', Gio.SettingsBindFlags.GET);
+        gaps.add(gapColor);
+        page.add(gaps);
         return page;
     }
 }

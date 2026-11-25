@@ -188,7 +188,7 @@ class XdripIndicator extends PanelMenu.Button {
         on(['low-mmol', 'high-mmol', 'value-color-low', 'value-color-in', 'value-color-high',
             'arrow-color-low', 'arrow-color-in', 'arrow-color-high', 'arrow-same-as-value',
             'stale-minutes', 'stale-color', 'graph-show-line', 'graph-smooth', 'graph-line-width',
-            'graph-line-color-mode', 'graph-line-color', 'graph-show-dots', 'graph-gap-minutes', 'units',
+            'graph-line-color-mode', 'graph-line-color', 'graph-show-dots', 'graph-gap-minutes', 'graph-fill-gaps', 'graph-gap-color', 'units',
             'graph-event-info'], () => {
             this._showEvent();
             this._updateLabels();

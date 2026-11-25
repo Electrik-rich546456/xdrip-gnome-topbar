@@ -101,6 +101,8 @@
       <default>15</default>
       <summary>Break the line where readings are further apart than this</summary>
     </key>
+    <key name="graph-fill-gaps" type="b"><default>false</default><summary>Bridge gaps in the readings with a line in the gap colour</summary></key>
+    <key name="graph-gap-color" type="s"><default>'#b05cff'</default><summary>Colour of the line that bridges a gap</summary></key>
     <key name="graph-hours" type="d">
       <range min="1" max="48"/>
       <default>48</default>
